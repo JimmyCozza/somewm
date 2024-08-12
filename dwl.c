@@ -335,6 +335,7 @@ static void setsel(struct wl_listener *listener, void *data);
 static void setup(void);
 static void spawn(const Arg *arg);
 static void startdrag(struct wl_listener *listener, void *data);
+static void swapstack(const Arg *arg);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static void tile(Monitor *m);
@@ -3182,6 +3183,36 @@ xwaylandready(struct wl_listener *listener, void *data)
 	xcb_disconnect(xc);
 }
 #endif
+
+void
+swapstack(const Arg *arg)
+{
+  Client *c;
+  Client *sel = focustop(selmon);
+  if (!sel){
+    return;
+  }
+  if (wl_list_length(&clients) < 2){
+    return;
+  }
+  if (arg->i > 0){
+    wl_list_for_each(c, &sel->link, link) {
+      if (VISIBLEON(c, selmon) || &c->link == &clients){
+        break;
+      }
+    }
+  } else {
+    wl_list_for_each_reverse(c, &sel->link, link) {
+      if (VISIBLEON(c, selmon) || &c->link == &clients){
+        break;
+      }
+    }
+    c = wl_container_of(c->link.prev, c, link);
+  }
+  wl_list_remove(&sel->link);
+  wl_list_insert(&c->link, &sel->link);
+  arrange(selmon);
+}
 
 int
 main(int argc, char *argv[])
