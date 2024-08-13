@@ -1,6 +1,5 @@
 .POSIX:
 .SUFFIXES:
-
 include config.mk
 
 # flags for compiling
@@ -10,20 +9,37 @@ DWLDEVCFLAGS = -g -pedantic -Wall -Wextra -Wdeclaration-after-statement \
 	-Wno-unused-parameter -Wshadow -Wunused-macros -Werror=strict-prototypes \
 	-Werror=implicit -Werror=return-type -Werror=incompatible-pointer-types \
 	-Wfloat-conversion
-LUA_LIBS = -llua
-LUA_INCLUDES = -I/usr/include/lua5.3
+# LUA_LIBS = -llua
+# LUA_INCLUDES = -I/usr/include/lua5.3
+LUA_LIBS = -llua5.4
+LUA_INCLUDES = -I/usr/include/lua5.4
 
 # CFLAGS / LDFLAGS
 PKGS      = wlroots-0.18 wayland-server xkbcommon libinput $(XLIBS)
-DWLCFLAGS = `$(PKG_CONFIG) --cflags $(PKGS)` $(DWLCPPFLAGS) $(DWLDEVCFLAGS) $(CFLAGS)
-LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` -lm $(LIBS)
+DWLCFLAGS = `$(PKG_CONFIG) --cflags $(PKGS)` $(DWLCPPFLAGS) $(DWLDEVCFLAGS) $(CFLAGS) $(LUA_INCLUDES)
+LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` -lm $(LIBS) $(LUA_LIBS)
 
-all: dwl
-dwl: dwl.o util.o
-	$(CC) dwl.o util.o $(DWLCFLAGS) $(LDFLAGS) $(LDLIBS) -o $@ $(LUA_LIBS) $(LUA_INCLUDES)
+all: lgi-check dwl
+
+# Add LGI check compilation and execution
+$(LGI_CHECK): $(LGI_CHECK).c
+	$(CC) $(CFLAGS) $(LUA_INCLUDES) $< -o $@ $(LUA_LIBS)
+
+lgi-check: ./build_utils/lgi-check.c
+	$(CC) $(CFLAGS) $(LUA_INCLUDES) $< -o lgi-check $(LUA_LIBS)
+	./lgi-check
+	rm -f lgi-check
+
+dwl: dwl.o util.o luaa.o
+	$(CC) $^ $(LDFLAGS) $(LDLIBS) -o $@
+
+# Add a rule to compile luaa.c
+luaa.o: luaa.c luaa.h
+	$(CC) $(CPPFLAGS) $(DWLCFLAGS) -c $< -o $@
+
 dwl.o: dwl.c client.h config.h config.mk cursor-shape-v1-protocol.h \
 	pointer-constraints-unstable-v1-protocol.h wlr-layer-shell-unstable-v1-protocol.h \
-	wlr-output-power-management-unstable-v1-protocol.h xdg-shell-protocol.h
+	wlr-output-power-management-unstable-v1-protocol.h xdg-shell-protocol.h luaa.h
 util.o: util.c util.h
 
 # wayland-scanner is a tool which generates C headers and rigging for Wayland
@@ -51,7 +67,7 @@ xdg-shell-protocol.h:
 config.h:
 	cp config.def.h $@
 clean:
-	rm -f dwl *.o *-protocol.h
+	rm -f dwl *.o *-protocol.h lgi-check
 
 dist: clean
 	mkdir -p dwl-$(VERSION)
