@@ -19,8 +19,12 @@ DWLCFLAGS = `$(PKG_CONFIG) --cflags $(PKGS)` $(DWLCPPFLAGS) $(DWLDEVCFLAGS) $(CF
 LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` -lm $(LIBS)
 
 all: dwl
-dwl: dwl.o util.o
+dwl: dwl.o util.o luaa.o
 	$(CC) dwl.o util.o $(DWLCFLAGS) $(LDFLAGS) $(LDLIBS) -o $@ $(LUA_LIBS) $(LUA_INCLUDES)
+	#
+# Add a rule to compile lua.c
+luaa.o: luaa.c luaa.h
+	$(CC) $(CPPFLAGS) $(DWLCFLAGS) -c $< -o $@
 dwl.o: dwl.c client.h config.h config.mk cursor-shape-v1-protocol.h \
 	pointer-constraints-unstable-v1-protocol.h wlr-layer-shell-unstable-v1-protocol.h \
 	wlr-output-power-management-unstable-v1-protocol.h xdg-shell-protocol.h
