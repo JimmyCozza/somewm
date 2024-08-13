@@ -1,6 +1,5 @@
 .POSIX:
 .SUFFIXES:
-
 include config.mk
 
 # flags for compiling
@@ -15,19 +14,21 @@ LUA_INCLUDES = -I/usr/include/lua5.3
 
 # CFLAGS / LDFLAGS
 PKGS      = wlroots-0.18 wayland-server xkbcommon libinput $(XLIBS)
-DWLCFLAGS = `$(PKG_CONFIG) --cflags $(PKGS)` $(DWLCPPFLAGS) $(DWLDEVCFLAGS) $(CFLAGS)
-LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` -lm $(LIBS)
+DWLCFLAGS = `$(PKG_CONFIG) --cflags $(PKGS)` $(DWLCPPFLAGS) $(DWLDEVCFLAGS) $(CFLAGS) $(LUA_INCLUDES)
+LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` -lm $(LIBS) $(LUA_LIBS)
 
 all: dwl
+
 dwl: dwl.o util.o luaa.o
-	$(CC) dwl.o util.o $(DWLCFLAGS) $(LDFLAGS) $(LDLIBS) -o $@ $(LUA_LIBS) $(LUA_INCLUDES)
-	#
-# Add a rule to compile lua.c
+	$(CC) $^ $(LDFLAGS) $(LDLIBS) -o $@
+
+# Add a rule to compile luaa.c
 luaa.o: luaa.c luaa.h
 	$(CC) $(CPPFLAGS) $(DWLCFLAGS) -c $< -o $@
+
 dwl.o: dwl.c client.h config.h config.mk cursor-shape-v1-protocol.h \
 	pointer-constraints-unstable-v1-protocol.h wlr-layer-shell-unstable-v1-protocol.h \
-	wlr-output-power-management-unstable-v1-protocol.h xdg-shell-protocol.h
+	wlr-output-power-management-unstable-v1-protocol.h xdg-shell-protocol.h luaa.h
 util.o: util.c util.h
 
 # wayland-scanner is a tool which generates C headers and rigging for Wayland

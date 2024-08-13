@@ -68,6 +68,7 @@
 #endif
 
 #include "util.h"
+#include "luaa.h"
 
 /* macros */
 #define MAX(A, B)               ((A) > (B) ? (A) : (B))
@@ -3236,6 +3237,10 @@ main(int argc, char *argv[])
 	/* Wayland requires XDG_RUNTIME_DIR for creating its communications socket */
 	if (!getenv("XDG_RUNTIME_DIR"))
 		die("XDG_RUNTIME_DIR must be set");
+
+    // Initialize Lua and load rc.lua
+  init_lua();
+
 	setup();
 	run(startup_cmd);
 	cleanup();
