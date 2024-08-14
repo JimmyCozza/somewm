@@ -1,5 +1,5 @@
 general_options = {
-  sloppyfocus = false,
+  sloppyfocus = true,
 }
 hello_world()
 

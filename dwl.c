@@ -2353,6 +2353,7 @@ void setup(void) {
 
   wlr_log_init(log_level, NULL);
 
+  sloppyfocus = get_config_bool("sloppyfocus", 0);
   /* The Wayland display is managed by libwayland. It handles accepting
    * clients from the Unix socket, manging Wayland globals, and so on. */
   dpy = wl_display_create();
