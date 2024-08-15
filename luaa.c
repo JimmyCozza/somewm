@@ -33,6 +33,12 @@ void init_lua(void) {
     lua_close(L);
     L = NULL;
   }
+    // Load and run the Lua script
+    if (luaL_dofile(L, "basic_drawable.lua") != LUA_OK) {
+        fprintf(stderr, "Error loading basic_drawable.lua: %s\n", lua_tostring(L, -1));
+        lua_close(L);
+        L = NULL;
+    }
 }
 
 int get_config_bool(const char *key, int default_value) {

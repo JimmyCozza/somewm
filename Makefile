@@ -17,7 +17,16 @@ PKGS      = wlroots-0.18 wayland-server xkbcommon libinput $(XLIBS)
 DWLCFLAGS = `$(PKG_CONFIG) --cflags $(PKGS)` $(DWLCPPFLAGS) $(DWLDEVCFLAGS) $(CFLAGS) $(LUA_INCLUDES)
 LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` -lm $(LIBS) $(LUA_LIBS)
 
-all: dwl
+all: lgi-check dwl
+
+# Add LGI check compilation and execution
+$(LGI_CHECK): $(LGI_CHECK).c
+	$(CC) $(CFLAGS) $(LUA_INCLUDES) $< -o $@ $(LUA_LIBS)
+
+lgi-check: ./build_utils/lgi-check.c
+	$(CC) $(CFLAGS) $(LUA_INCLUDES) $< -o lgi-check $(LUA_LIBS)
+	./lgi-check
+	rm -f lgi-check
 
 dwl: dwl.o util.o luaa.o
 	$(CC) $^ $(LDFLAGS) $(LDLIBS) -o $@
@@ -56,7 +65,7 @@ xdg-shell-protocol.h:
 config.h:
 	cp config.def.h $@
 clean:
-	rm -f dwl *.o *-protocol.h
+	rm -f dwl *.o *-protocol.h lgi-check
 
 dist: clean
 	mkdir -p dwl-$(VERSION)
