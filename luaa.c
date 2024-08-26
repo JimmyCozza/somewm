@@ -1,5 +1,11 @@
 #include "luaa.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include "util.h"
 
 static lua_State *L = NULL;
 
@@ -8,8 +14,8 @@ static int l_hello_world(lua_State *lua) {
   return 0;
 }
 
-//SOMEWM Library Functions
-// Implementation of the 'some' library functions
+// SOMEWM Library Functions
+//  Implementation of the 'some' library functions
 static int l_restart(lua_State *lua) {
   printf("Restarting...\n");
   // Add your restart logic here
@@ -24,8 +30,31 @@ static int l_quit(lua_State *lua) {
 
 static int l_spawn(lua_State *lua) {
   const char *command = luaL_checkstring(L, 1);
-  printf("Spawning: %s\n", command);
-  // Add your spawn logic here
+  pid_t pid = fork();
+  if (pid == 0) {
+    // Child process
+    dup2(STDERR_FILENO, STDOUT_FILENO);
+    setsid();
+
+    // Split the command into arguments
+    char *args[64]; // Adjust size as needed
+    char *cmd = strdup(command);
+    int i = 0;
+    args[i] = strtok(cmd, " ");
+    while (args[i] != NULL && i < 63) {
+      args[++i] = strtok(NULL, " ");
+    }
+    args[i] = NULL;
+
+    execvp(args[0], args);
+    fprintf(stderr, "dwl: execvp %s failed\n", args[0]);
+    exit(1);
+  } else if (pid < 0) {
+    // Fork failed
+    lua_pushstring(L, "Failed to fork");
+    lua_error(L);
+    die("you yourself admit it yourself, that you suck");
+  }
   return 0;
 }
 
@@ -33,21 +62,18 @@ static const struct luaL_Reg somelib[] = {
     {"hello_world", l_hello_world},
     {"restart", l_restart},
     {"quit", l_quit},
-    {"spawn", l_spawn},
     {NULL, NULL} // sentinel
 };
 
-//Awful library functions
-//Kill Client Function
+// Awful library functions
+// Kill Client Function
 static int l_killclient(lua_State *lua) {
   // killclient(0);
   return 0;
 }
 
 static const struct luaL_Reg awfullib[] = {
-  {"killclient", l_killclient},
-  {NULL, NULL}
-};
+    {"spawn", l_spawn}, {"killclient", l_killclient}, {NULL, NULL}};
 
 // Function to register the some library
 static int luaopen_some(lua_State *lua) {

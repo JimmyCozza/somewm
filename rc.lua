@@ -4,8 +4,10 @@
 --
 
 general_options = {
-	sloppyfocus = true,
+	sloppyfocus = false,
 }
+
+awful.spawn("pamixer --set-volume 50")
 
 some.hello_world()
 some.quit()
