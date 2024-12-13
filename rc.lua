@@ -4,7 +4,17 @@ local modkey = "logo"
 
 awful.key({
   modifiers = { modkey },
-  key = "w",
+  key = "p",
+  description = "launch bemenu",
+  group = "applications",
+  on_press = function()
+    Some.spawn("bemenu-run")
+  end,
+})
+
+awful.key({
+  modifiers = { modkey },
+  key = "Return",
   description = "launch wezterm",
   group = "applications",
   on_press = function()

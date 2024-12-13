@@ -356,7 +356,6 @@ static void setmon(Client *c, Monitor *m, uint32_t newtags);
 static void setpsel(struct wl_listener *listener, void *data);
 static void setsel(struct wl_listener *listener, void *data);
 static void setup(void);
-static void spawn(const Arg *arg);
 static void startdrag(struct wl_listener *listener, void *data);
 static void swapstack(const Arg *arg);
 static void tag(const Arg *arg);
@@ -1520,7 +1519,6 @@ void inputdevice(struct wl_listener *listener, void *data) {
 }
 
 int keybinding(uint32_t mods, xkb_keysym_t sym) {
-  fprintf(stderr, "Key pressed - mods: 0x%x, sym: 0x%x\n", mods, sym);
   /*
    * Here we handle compositor keybindings. This is when the compositor is
    * processing keys, rather than passing them on to the client for its own
@@ -2582,15 +2580,6 @@ void setup(void) {
             "failed to setup XWayland X server, continuing without it\n");
   }
 #endif
-}
-
-void spawn(const Arg *arg) {
-  if (fork() == 0) {
-    dup2(STDERR_FILENO, STDOUT_FILENO);
-    setsid();
-    execvp(((char **)arg->v)[0], (char **)arg->v);
-    die("dwl: execvp %s failed:", ((char **)arg->v)[0]);
-  }
 }
 
 void startdrag(struct wl_listener *listener, void *data) {
