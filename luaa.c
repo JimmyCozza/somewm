@@ -202,3 +202,39 @@ void init_lua(void) {
     return;
   }
 }
+
+int get_config_stack_mode(const char *key, enum StackInsertMode default_mode) {
+    if (L == NULL) {
+        return default_mode;
+    }
+
+    lua_getglobal(L, "general_options");
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 1);
+        return default_mode;
+    }
+
+    lua_getfield(L, -1, key);
+    if (!lua_isstring(L, -1)) {
+        lua_pop(L, 2);
+        return default_mode;
+    }
+
+    const char *mode = lua_tostring(L, -1);
+    enum StackInsertMode result = default_mode;
+    
+    if (strcmp(mode, "top") == 0) {
+        result = STACK_INSERT_TOP;
+    } else if (strcmp(mode, "bottom") == 0) {
+        result = STACK_INSERT_BOTTOM;
+    }
+
+    lua_pop(L, 2);
+    return result;
+}
+
+static void validate_stack_mode(const char *mode) {
+    if (strcmp(mode, "top") != 0 && strcmp(mode, "bottom") != 0) {
+        fprintf(stderr, "Warning: Invalid stack_insert_mode '%s'. Using default 'bottom'.\n", mode);
+    }
+}

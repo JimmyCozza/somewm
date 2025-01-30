@@ -1658,6 +1658,7 @@ void mapnotify(struct wl_listener *listener, void *data) {
   Client *w, *c = wl_container_of(listener, c, map);
   Monitor *m;
   int i;
+  enum StackInsertMode mode;
 
   /* Create scene tree for this client and its border */
   c->scene = client_surface(c)->data = wlr_scene_tree_create(layers[LyrTile]);
@@ -1695,8 +1696,13 @@ void mapnotify(struct wl_listener *listener, void *data) {
   c->geom.height += 2 * c->bw;
 
   /* Insert this client into client lists. */
-  wl_list_insert(&clients, &c->link);
-  wl_list_insert(&fstack, &c->flink);
+  mode = get_config_stack_mode("stack_insert_mode", STACK_INSERT_BOTTOM);
+    if (mode == STACK_INSERT_TOP) {
+        wl_list_insert(&clients, &c->link);  // Add to beginning
+    } else {
+        wl_list_insert(clients.prev, &c->link);  // Add to end
+    }
+    wl_list_insert(&fstack, &c->flink);
 
   /* Set initial monitor, tags, floating status, and focus:
    * we always consider floating, clients that have parent and thus

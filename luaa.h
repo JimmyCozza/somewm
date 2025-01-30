@@ -8,6 +8,11 @@
 #include <stdint.h>
 #include <stddef.h>
 
+enum StackInsertMode {
+    STACK_INSERT_TOP,    // New windows go on top/left 
+    STACK_INSERT_BOTTOM  // New windows go on bottom/right
+};
+
 typedef struct {
     uint32_t mod;
     xkb_keysym_t keysym;
@@ -24,4 +29,7 @@ int get_config_bool(const char *key, int default_value);
 
 void init_lua(void);
 void cleanup_lua(void);
+
+// Add to existing get_config functions
+int get_config_stack_mode(const char *key, enum StackInsertMode default_mode);
 #endif

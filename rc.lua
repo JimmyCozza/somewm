@@ -2,6 +2,14 @@ local awful = require("awful")
 
 local modkey = "logo"
 
+general_options = {
+  -- Controls where new windows are inserted in the stack
+  -- Valid values: "top" or "bottom"
+  -- "top": New windows appear at the top/left of the stack
+  -- "bottom": New windows appear at the bottom/right of the stack
+  stack_insert_mode = "bottom",
+}
+
 awful.key({
   modifiers = { modkey },
   key = "p",
