@@ -1,6 +1,7 @@
 local awful = require("awful")
 
 local modkey = "logo"
+local shift = "Shift"
 
 general_options = {
   -- Controls where new windows are inserted in the stack
@@ -57,6 +58,16 @@ awful.key({
   group = "media",
   on_press = function()
     Some.spawn("pamixer -t")
+  end,
+})
+
+awful.key({
+  modifiers = { modkey, shift },
+  key = "P",
+  description = "screenshot to clipboard",
+  group = "applications",
+  on_press = function()
+    Some.spawn('grim -g "$(slurp)" - | wl-copy')
   end,
 })
 
