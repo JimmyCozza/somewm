@@ -7,11 +7,9 @@
 #include <xkbcommon/xkbcommon.h>
 #include <stdint.h>
 #include <stddef.h>
+#include "include/common.h"
 
-enum StackInsertMode {
-    STACK_INSERT_TOP,    // New windows go on top/left 
-    STACK_INSERT_BOTTOM  // New windows go on bottom/right
-};
+// StackInsertMode is now defined in include/common.h
 
 typedef struct {
     uint32_t mod;

@@ -16,10 +16,13 @@ LUA_INCLUDES = -I/usr/include/lua5.4
 
 # CFLAGS / LDFLAGS
 PKGS      = wlroots-0.18 wayland-server xkbcommon libinput $(XLIBS)
-DWLCFLAGS = `$(PKG_CONFIG) --cflags $(PKGS)` $(DWLCPPFLAGS) $(DWLDEVCFLAGS) $(CFLAGS) $(LUA_INCLUDES)
+DWLCFLAGS = `$(PKG_CONFIG) --cflags $(PKGS)` $(DWLCPPFLAGS) $(DWLDEVCFLAGS) $(CFLAGS) $(LUA_INCLUDES) -I.
 LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` -lm $(LIBS) $(LUA_LIBS)
 
 all: lgi-check dwl
+
+# Create include directory if it doesn't exist
+	test -d include || mkdir -p include
 
 # Add LGI check compilation and execution
 $(LGI_CHECK): $(LGI_CHECK).c
@@ -39,7 +42,7 @@ luaa.o: luaa.c luaa.h
 
 dwl.o: dwl.c client.h config.h config.mk cursor-shape-v1-protocol.h \
 	pointer-constraints-unstable-v1-protocol.h wlr-layer-shell-unstable-v1-protocol.h \
-	wlr-output-power-management-unstable-v1-protocol.h xdg-shell-protocol.h luaa.h
+	wlr-output-power-management-unstable-v1-protocol.h xdg-shell-protocol.h luaa.h include/common.h
 util.o: util.c util.h
 
 # wayland-scanner is a tool which generates C headers and rigging for Wayland

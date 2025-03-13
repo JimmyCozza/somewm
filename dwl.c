@@ -69,15 +69,12 @@
 
 #include "luaa.h"
 #include "util.h"
+#include "include/common.h"
 
 /* macros */
-#define MAX(A, B) ((A) > (B) ? (A) : (B))
-#define MIN(A, B) ((A) < (B) ? (A) : (B))
-#define CLEANMASK(mask) (mask & ~WLR_MODIFIER_CAPS)
 #define VISIBLEON(C, M)                                                        \
   ((M) && (C)->mon == (M) && ((C)->tags & (M)->tagset[(M)->seltags]))
-#define LENGTH(X) (sizeof X / sizeof X[0])
-#define END(A) ((A) + LENGTH(A))
+
 #define TAGMASK ((1u << TAGCOUNT) - 1)
 #define LISTEN(E, L, H) wl_signal_add((E), ((L)->notify = (H), (L)))
 #define LISTEN_STATIC(E, H)                                                    \
@@ -87,8 +84,6 @@
   } while (0)
 
 /* enums */
-enum { CurNormal, CurPressed, CurMove, CurResize }; /* cursor */
-enum { XDGShell, LayerShell, X11 };                 /* client types */
 enum {
   LyrBg,
   LyrBottom,
@@ -110,12 +105,7 @@ enum {
 }; /* EWMH atoms */
 #endif
 
-typedef union {
-  int i;
-  uint32_t ui;
-  float f;
-  const void *v;
-} Arg;
+/* Arg union now defined in include/common.h */
 
 typedef struct {
   unsigned int mod;
