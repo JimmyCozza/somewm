@@ -76,10 +76,51 @@ static int l_get_keysym(lua_State *L) {
   return 1;
 }
 
+static int l_draw_widget(lua_State *L) {
+  int width = luaL_checkinteger(L, 1);
+  int height = luaL_checkinteger(L, 2);
+  double x = luaL_checknumber(L, 3);
+  double y = luaL_checknumber(L, 4);
+  const char *draw_function = luaL_checkstring(L, 5);
+  const char *text = lua_isstring(L, 6) ? lua_tostring(L, 6) : "Notification";
+  
+  // This is a simplified version that demonstrates the concept
+  // In a real implementation, you would create a actual surface and render it to the Wayland scene
+  fprintf(stderr, "Drawing widget at %f,%f with dimensions %dx%d using %s\n", x, y, width, height, draw_function);
+  
+  // Call the Lua function to draw the widget
+  // Push the function name to get the actual function
+  lua_getglobal(L, draw_function);
+  
+  // Create a temporary Cairo surface for drawing
+  // In a real implementation, this would be integrated with your Wayland compositor
+  
+  // Pass parameters to the Lua function
+  lua_pushinteger(L, width);
+  lua_pushinteger(L, height);
+  lua_pushnil(L);  // We would pass a real surface pointer here in a full implementation
+  lua_pushstring(L, text);
+  
+  // Call the Lua function (4 arguments, 0 returns)
+  if (lua_pcall(L, 4, 0, 0) != LUA_OK) {
+    const char *error = lua_tostring(L, -1);
+    fprintf(stderr, "Error calling Lua draw function: %s\n", error);
+    lua_pop(L, 1);
+    return 1;
+  }
+  
+  // In a real implementation, we would now add the surface to the Wayland scene
+  // at position x,y and make it visible
+  fprintf(stderr, "Widget with text '%s' would now be visible at %f,%f\n", text, x, y);
+  
+  return 0;
+}
+
 static const struct luaL_Reg somelib[] = {{"hello_world", l_hello_world},
                                           {"spawn", l_spawn},
                                           {"restart", l_restart},
                                           {"quit", l_quit},
+                                          {"draw_widget", l_draw_widget},
                                           {NULL, NULL}};
 
 static int luaopen_some(lua_State *lua) {

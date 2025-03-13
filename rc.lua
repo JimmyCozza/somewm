@@ -1,4 +1,5 @@
 local awful = require("awful")
+local widgets = require("widgets")
 
 local modkey = "logo"
 local shift = "Shift"
@@ -68,6 +69,17 @@ awful.key({
   group = "applications",
   on_press = function()
     Some.spawn('grim -g "$(slurp)" - | wl-copy')
+  end,
+})
+
+-- Add a keybinding to show a widget
+awful.key({
+  modifiers = { modkey },
+  key = "w",
+  description = "show a test widget",
+  group = "widgets",
+  on_press = function()
+    widgets.create_notification("Hello from SomeWM!", 5)
   end,
 })
 
