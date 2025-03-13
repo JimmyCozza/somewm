@@ -2,6 +2,7 @@ local lgi = require("lgi")
 local cairo = lgi.cairo
 local drawable = require("basic_drawable")
 local logger = require("logger")
+local wayland_surface = require("wayland_surface")
 
 local widgets = {}
 
@@ -12,6 +13,9 @@ widgets.active_widgets = {}
 function widgets.test_notification(text, timeout)
   logger.info("== Widget Test Function Called ==")
   logger.info(string.format("Creating test notification with text: '%s'", text or "Test"))
+  
+  -- Test LGI directly
+  logger.debug("Testing LGI drawing capability")
   
   -- Let's try to use lgi directly
   local surface = cairo.ImageSurface.create(cairo.Format.ARGB32, 300, 100)
@@ -43,12 +47,18 @@ function widgets.test_notification(text, timeout)
   cr:move_to(x, y)
   cr:show_text(test_text)
   
-  logger.info("Test notification drawing completed")
+  logger.info("LGI drawing test completed successfully")
+  
+  -- Now use the Wayland surface method to actually display something
+  logger.debug("Now trying Wayland surface method")
+  local result = wayland_surface.create_widget_surface(300, 100, 100, 100, test_text)
+  if result then
+    logger.info("Wayland surface created successfully")
+  else
+    logger.error("Failed to create Wayland surface")
+  end
+  
   logger.info("== Widget Test Function Completed ==")
-  
-  -- We would save this to a file if we wanted to verify
-  -- surface:write_to_png("test_notification.png")
-  
   return true
 end
 
@@ -97,31 +107,49 @@ function widgets.show_widget(widget)
   logger.info(string.format("Showing widget at position %d,%d with size %dx%d", 
                            widget.x, widget.y, widget.width, widget.height))
   
-  -- Call the C function to draw the widget
-  logger.debug("Calling Some.draw_widget function")
-  Some.draw_widget(
-    widget.width, 
-    widget.height, 
-    widget.x, 
-    widget.y, 
-    "widgets.draw_simple_widget",
+  -- First try the direct Wayland surface method
+  logger.debug("Attempting to create Wayland surface directly")
+  local surface_created = wayland_surface.create_widget_surface(
+    widget.width,
+    widget.height,
+    widget.x,
+    widget.y,
     widget.text
   )
-  logger.debug("Returned from Some.draw_widget")
+  
+  if surface_created then
+    logger.info("Widget displayed using Wayland surface")
+  else
+    -- Fallback to the original method
+    logger.debug("Falling back to C draw_widget function")
+    Some.draw_widget(
+      widget.width, 
+      widget.height, 
+      widget.x, 
+      widget.y, 
+      "widgets.draw_simple_widget",
+      widget.text
+    )
+    logger.debug("Returned from Some.draw_widget")
+  end
+  
+  -- Store the widget creation time to implement timeout
+  widget.created_at = os.time()
   
   -- Set a timer to hide the widget after timeout
-  -- In a real implementation, you would set up a timer here
   logger.info(string.format("Widget will be visible for %d seconds", widget.timeout))
-  
-  -- For demonstration purposes, schedule hiding after timeout
-  -- In a real implementation, you would use a proper timer mechanism
-  -- This is just simulating the concept
   logger.debug(string.format("(In a real implementation, the widget would be hidden after %d seconds)", widget.timeout))
 end
 
 -- Hide a widget
 function widgets.hide_widget(widget)
   logger.info("Hiding widget")
+  
+  -- Destroy the Wayland surface if it exists
+  if widget.surface_id then
+    wayland_surface.destroy_widget_surface(widget.surface_id)
+    widget.surface_id = nil
+  end
   
   -- Find and remove the widget
   for i, w in ipairs(widgets.active_widgets) do
@@ -132,7 +160,6 @@ function widgets.hide_widget(widget)
     end
   end
   
-  -- In a real implementation, you would remove the widget from the scene
   logger.debug("Widget hidden")
 end
 

@@ -115,4 +115,34 @@ awful.key({
   end,
 })
 
+-- Add a keybinding specifically for testing the notification system
+awful.key({
+  modifiers = { modkey },
+  key = "n",
+  description = "test notification system",
+  group = "widgets",
+  on_press = function()
+    logger.info("'n' key pressed, testing notification system")
+    
+    -- Use the system's notification directly
+    local wayland_surface = require("wayland_surface")
+    wayland_surface.create_widget_surface(300, 100, 50, 50, "Test Notification via system notification")
+  end,
+})
+
+-- Add a keybinding to test alternative notification methods
+awful.key({
+  modifiers = { modkey },
+  key = "d",
+  description = "test menu-based notification",
+  group = "widgets",
+  on_press = function()
+    logger.info("'d' key pressed, testing menu-based notification")
+    
+    -- Use the direct message display function
+    local wayland_surface = require("wayland_surface")
+    wayland_surface.display_message("Test menu-based notification")
+  end,
+})
+
 Some.hello_world()
