@@ -1,5 +1,10 @@
 local awful = require("awful")
 local widgets = require("widgets")
+local logger = require("logger")
+
+-- Initialize logger
+logger.init()
+logger.info("SomeWM starting up")
 
 local modkey = "logo"
 local shift = "Shift"
@@ -79,7 +84,34 @@ awful.key({
   description = "show a test widget",
   group = "widgets",
   on_press = function()
-    widgets.create_notification("Hello from SomeWM!", 5)
+    logger.info("'w' key pressed, creating notification widget")
+    local ok, err = pcall(function()
+      widgets.create_notification("Hello from SomeWM!", 5)
+    end)
+    if not ok then
+      logger.error("Failed to create widget: " .. tostring(err))
+    else
+      logger.info("Widget creation successful")
+    end
+  end,
+})
+
+-- Add a keybinding to test LGI directly without C integration
+awful.key({
+  modifiers = { modkey },
+  key = "g",
+  description = "test lgi widget drawing",
+  group = "widgets",
+  on_press = function()
+    logger.info("'g' key pressed, running direct LGI test")
+    local ok, err = pcall(function()
+      widgets.test_notification("Direct LGI Test", 5)
+    end)
+    if not ok then
+      logger.error("Failed to run LGI test: " .. tostring(err))
+    else
+      logger.info("LGI test completed successfully")
+    end
   end,
 })
 

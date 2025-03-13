@@ -76,6 +76,36 @@ static int l_get_keysym(lua_State *L) {
   return 1;
 }
 
+static int l_log(lua_State *L) {
+  const char *level = luaL_checkstring(L, 1);
+  const char *message = luaL_checkstring(L, 2);
+  
+  // Call the Lua logger
+  lua_getglobal(L, "logger");
+  if (lua_isnil(L, -1)) {
+    fprintf(stderr, "Error: logger module not loaded\n");
+    lua_pop(L, 1);
+    return 0;
+  }
+  
+  lua_getfield(L, -1, level);
+  if (lua_isnil(L, -1)) {
+    fprintf(stderr, "Error: invalid log level: %s\n", level);
+    lua_pop(L, 2);
+    return 0;
+  }
+  
+  lua_pushstring(L, message);
+  if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+    fprintf(stderr, "Error calling logger.%s: %s\n", level, lua_tostring(L, -1));
+    lua_pop(L, 2); // Error and logger table
+    return 0;
+  }
+  
+  lua_pop(L, 1); // Pop logger table
+  return 0;
+}
+
 static int l_draw_widget(lua_State *L) {
   int width = luaL_checkinteger(L, 1);
   int height = luaL_checkinteger(L, 2);
@@ -83,14 +113,44 @@ static int l_draw_widget(lua_State *L) {
   double y = luaL_checknumber(L, 4);
   const char *draw_function = luaL_checkstring(L, 5);
   const char *text = lua_isstring(L, 6) ? lua_tostring(L, 6) : "Notification";
+  char msg[256];
   
-  // This is a simplified version that demonstrates the concept
-  // In a real implementation, you would create a actual surface and render it to the Wayland scene
-  fprintf(stderr, "Drawing widget at %f,%f with dimensions %dx%d using %s\n", x, y, width, height, draw_function);
+  // Log to the Lua logger
+  lua_getglobal(L, "logger");
+  if (!lua_isnil(L, -1)) {
+    snprintf(msg, sizeof(msg), "C: Draw widget called - size=%dx%d, pos=%.1f,%.1f, drawer=%s", 
+             width, height, x, y, draw_function);
+    lua_getfield(L, -1, "info");
+    lua_pushstring(L, msg);
+    if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+      fprintf(stderr, "Error logging widget draw: %s\n", lua_tostring(L, -1));
+      lua_pop(L, 1);  // Error message
+    }
+    lua_pop(L, 1);  // Logger table
+  } else {
+    fprintf(stderr, "Drawing widget at %f,%f with dimensions %dx%d using %s\n", x, y, width, height, draw_function);
+    lua_pop(L, 1);  // nil
+  }
   
   // Call the Lua function to draw the widget
   // Push the function name to get the actual function
   lua_getglobal(L, draw_function);
+  
+  if (lua_isnil(L, -1)) {
+    lua_getglobal(L, "logger");
+    if (!lua_isnil(L, -1)) {
+      snprintf(msg, sizeof(msg), "C: ERROR - Draw function '%s' not found!", draw_function);
+      lua_getfield(L, -1, "error");
+      lua_pushstring(L, msg);
+      lua_pcall(L, 1, 0, 0);
+      lua_pop(L, 1);  // Logger table
+    } else {
+      fprintf(stderr, "ERROR: Draw function '%s' not found!\n", draw_function);
+      lua_pop(L, 1);  // nil
+    }
+    lua_pop(L, 1);  // nil function
+    return 1;
+  }
   
   // Create a temporary Cairo surface for drawing
   // In a real implementation, this would be integrated with your Wayland compositor
@@ -103,15 +163,34 @@ static int l_draw_widget(lua_State *L) {
   
   // Call the Lua function (4 arguments, 0 returns)
   if (lua_pcall(L, 4, 0, 0) != LUA_OK) {
-    const char *error = lua_tostring(L, -1);
-    fprintf(stderr, "Error calling Lua draw function: %s\n", error);
-    lua_pop(L, 1);
+    lua_getglobal(L, "logger");
+    if (!lua_isnil(L, -1)) {
+      snprintf(msg, sizeof(msg), "C: ERROR calling Lua draw function: %s", lua_tostring(L, -2));
+      lua_getfield(L, -1, "error");
+      lua_pushstring(L, msg);
+      lua_pcall(L, 1, 0, 0);
+      lua_pop(L, 1);  // Logger table
+    } else {
+      fprintf(stderr, "Error calling Lua draw function: %s\n", lua_tostring(L, -1));
+      lua_pop(L, 1);  // nil
+    }
+    lua_pop(L, 1);  // Error message
     return 1;
   }
   
   // In a real implementation, we would now add the surface to the Wayland scene
   // at position x,y and make it visible
-  fprintf(stderr, "Widget with text '%s' would now be visible at %f,%f\n", text, x, y);
+  lua_getglobal(L, "logger");
+  if (!lua_isnil(L, -1)) {
+    snprintf(msg, sizeof(msg), "C: Widget '%s' drawing completed successfully", text);
+    lua_getfield(L, -1, "info");
+    lua_pushstring(L, msg);
+    lua_pcall(L, 1, 0, 0);
+    lua_pop(L, 1);  // Logger table
+  } else {
+    fprintf(stderr, "Widget with text '%s' would now be visible at %f,%f\n", text, x, y);
+    lua_pop(L, 1);  // nil
+  }
   
   return 0;
 }
@@ -121,6 +200,7 @@ static const struct luaL_Reg somelib[] = {{"hello_world", l_hello_world},
                                           {"restart", l_restart},
                                           {"quit", l_quit},
                                           {"draw_widget", l_draw_widget},
+                                          {"log", l_log},
                                           {NULL, NULL}};
 
 static int luaopen_some(lua_State *lua) {
@@ -191,8 +271,20 @@ void cleanup_lua(void) {
 static int l_register_key_binding(lua_State *L) {
   uint32_t mods = lua_tointeger(L, 1);
   xkb_keysym_t keysym = lua_tointeger(L, 2);
-  fprintf(stderr, "C: Registering binding - mods: %u, keysym: %u\n", mods,
-          keysym);
+  char msg[256];
+  snprintf(msg, sizeof(msg), "Registering binding - mods: %u, keysym: %u", mods, keysym);
+  
+  // Log the registration
+  lua_getglobal(L, "logger");
+  if (!lua_isnil(L, -1)) {
+    lua_getfield(L, -1, "info");
+    lua_pushstring(L, msg);
+    lua_pcall(L, 1, 0, 0);
+    lua_pop(L, 1); // Pop logger table
+  } else {
+    fprintf(stderr, "%s\n", msg);
+    lua_pop(L, 1); // Pop nil
+  }
 
   int press_ref = LUA_REFNIL;
   int release_ref = LUA_REFNIL;
@@ -200,11 +292,27 @@ static int l_register_key_binding(lua_State *L) {
   if (!lua_isnil(L, 3)) {
     lua_pushvalue(L, 3);
     press_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    
+    lua_getglobal(L, "logger");
+    if (!lua_isnil(L, -1)) {
+      lua_getfield(L, -1, "debug");
+      lua_pushstring(L, "Registered press callback");
+      lua_pcall(L, 1, 0, 0);
+      lua_pop(L, 1); // Pop logger table
+    }
   }
 
   if (!lua_isnil(L, 4)) {
     lua_pushvalue(L, 4);
     release_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    
+    lua_getglobal(L, "logger");
+    if (!lua_isnil(L, -1)) {
+      lua_getfield(L, -1, "debug");
+      lua_pushstring(L, "Registered release callback");
+      lua_pcall(L, 1, 0, 0);
+      lua_pop(L, 1); // Pop logger table
+    }
   }
 
   lua_keys = realloc(lua_keys, (num_lua_keys + 1) * sizeof(LuaKey));
@@ -216,6 +324,18 @@ static int l_register_key_binding(lua_State *L) {
                                     .press_ref = press_ref,
                                     .release_ref = release_ref};
   num_lua_keys++;
+  
+  snprintf(msg, sizeof(msg), "Binding registered successfully, total bindings: %zu", num_lua_keys);
+  lua_getglobal(L, "logger");
+  if (!lua_isnil(L, -1)) {
+    lua_getfield(L, -1, "info");
+    lua_pushstring(L, msg);
+    lua_pcall(L, 1, 0, 0);
+    lua_pop(L, 1); // Pop logger table
+  } else {
+    fprintf(stderr, "%s\n", msg);
+    lua_pop(L, 1); // Pop nil
+  }
 
   return 0;
 }
@@ -229,6 +349,7 @@ void init_lua(void) {
     lua_close(L);
   }
 
+  fprintf(stderr, "Initializing Lua environment...\n");
   L = luaL_newstate();
   if (L == NULL) {
     fprintf(stderr, "Failed to create Lua state\n");
@@ -253,11 +374,28 @@ void init_lua(void) {
   lua_pushcfunction(L, l_get_keysym);
   lua_setglobal(L, "get_keysym_native");
 
+  fprintf(stderr, "Loading rc.lua...\n");
   if (luaL_dofile(L, "rc.lua") != LUA_OK) {
     fprintf(stderr, "Error loading rc.lua: %s\n", lua_tostring(L, -1));
     lua_close(L);
     L = NULL;
     return;
+  }
+
+  fprintf(stderr, "Lua initialization complete\n");
+  
+  // Let's log a startup message if the logger is available
+  lua_getglobal(L, "logger");
+  if (!lua_isnil(L, -1)) {
+    lua_getfield(L, -1, "info");
+    lua_pushstring(L, "C: Lua environment initialized successfully");
+    if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+      fprintf(stderr, "Error logging startup: %s\n", lua_tostring(L, -1));
+      lua_pop(L, 1);  // Error message
+    }
+    lua_pop(L, 1);  // Logger table
+  } else {
+    lua_pop(L, 1);  // nil
   }
 }
 

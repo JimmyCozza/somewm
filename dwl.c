@@ -1518,10 +1518,43 @@ int keybinding(uint32_t mods, xkb_keysym_t sym) {
    * the C bindings from config.h
    */
   const Key *k;
+  char msg[256];
+
+  // Log the key press if logger is available
+  if (L) {
+    lua_getglobal(L, "logger");
+    if (!lua_isnil(L, -1)) {
+      snprintf(msg, sizeof(msg), "Key pressed: mods=%u, sym=%u (0x%x)", 
+               CLEANMASK(mods), sym, sym);
+      lua_getfield(L, -1, "debug");
+      lua_pushstring(L, msg);
+      if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+        fprintf(stderr, "Error logging key press: %s\n", lua_tostring(L, -1));
+        lua_pop(L, 1);  // Error message
+      }
+      lua_pop(L, 1);  // Logger table
+    } else {
+      lua_pop(L, 1);  // nil
+    }
+  }
 
   for (size_t i = 0; i < num_lua_keys; i++) {
 if (CLEANMASK(mods) == CLEANMASK(lua_keys[i].mod) && sym == lua_keys[i].keysym) {
   if (lua_keys[i].press_ref != LUA_REFNIL) {
+    if (L) {
+      lua_getglobal(L, "logger");
+      if (!lua_isnil(L, -1)) {
+        snprintf(msg, sizeof(msg), "Executing Lua keybinding for mods=%u, sym=%u", 
+                 CLEANMASK(mods), sym);
+        lua_getfield(L, -1, "info");
+        lua_pushstring(L, msg);
+        lua_pcall(L, 1, 0, 0);
+        lua_pop(L, 1);  // Logger table
+      } else {
+        lua_pop(L, 1);  // nil
+      }
+    }
+    
     lua_rawgeti(L, LUA_REGISTRYINDEX, lua_keys[i].press_ref);
     if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
       fprintf(stderr, "Error calling Lua function: %s\n", lua_tostring(L, -1));
@@ -1534,10 +1567,39 @@ if (CLEANMASK(mods) == CLEANMASK(lua_keys[i].mod) && sym == lua_keys[i].keysym) 
 
   for (k = keys; k < END(keys); k++) {
     if (CLEANMASK(mods) == CLEANMASK(k->mod) && sym == k->keysym && k->func) {
+      if (L) {
+        lua_getglobal(L, "logger");
+        if (!lua_isnil(L, -1)) {
+          snprintf(msg, sizeof(msg), "Executing C keybinding for mods=%u, sym=%u", 
+                   CLEANMASK(mods), sym);
+          lua_getfield(L, -1, "info");
+          lua_pushstring(L, msg);
+          lua_pcall(L, 1, 0, 0);
+          lua_pop(L, 1);  // Logger table
+        } else {
+          lua_pop(L, 1);  // nil
+        }
+      }
+      
       k->func(&k->arg);
       return 1;
     }
   }
+  
+  if (L) {
+    lua_getglobal(L, "logger");
+    if (!lua_isnil(L, -1)) {
+      snprintf(msg, sizeof(msg), "No keybinding found for mods=%u, sym=%u", 
+               CLEANMASK(mods), sym);
+      lua_getfield(L, -1, "debug");
+      lua_pushstring(L, msg);
+      lua_pcall(L, 1, 0, 0);
+      lua_pop(L, 1);  // Logger table
+    } else {
+      lua_pop(L, 1);  // nil
+    }
+  }
+  
   return 0;
 }
 
