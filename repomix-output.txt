@@ -57,6 +57,9 @@ lua/
   awful/
     init.lua
     key.lua
+  logger.lua
+  wayland_surface.lua
+  widgets.lua
 protocols/
   wlr-layer-shell-unstable-v1.xml
   wlr-output-power-management-unstable-v1.xml
@@ -340,6 +343,423 @@ return setmetatable(key, {
     }
   end,
 })
+
+================
+File: lua/logger.lua
+================
+local logger = {}
+
+-- Configure the log file
+local LOG_FILE = "logs/somewm.log"
+local LOG_LEVEL = "debug" -- debug, info, warn, error
+
+-- Log levels
+local LEVELS = {
+  debug = 1,
+  info = 2,
+  warn = 3,
+  error = 4
+}
+
+-- Current log level
+local current_level = LEVELS[LOG_LEVEL] or LEVELS.info
+
+-- Open log file once
+local log_file
+
+-- Initialize the logger
+function logger.init()
+  -- Ensure the logs directory exists
+  local dir_stat = os.execute("mkdir -p logs")
+  if dir_stat ~= 0 and dir_stat ~= true then
+    print("Failed to create logs directory")
+    return false
+  end
+  
+  -- Open the log file for appending
+  local file, err = io.open(LOG_FILE, "a")
+  if not file then
+    print("Failed to open log file: " .. (err or "unknown error"))
+    return false
+  end
+  
+  log_file = file
+  
+  -- Add a separator for new log session
+  logger.info("===== SomeWM Log Session Started =====")
+  return true
+end
+
+-- Internal logging function
+local function log(level, message)
+  if not log_file then
+    if not logger.init() then
+      return
+    end
+  end
+  
+  if LEVELS[level] >= current_level then
+    local timestamp = os.date("%Y-%m-%d %H:%M:%S")
+    local log_message = string.format("[%s] [%s] %s\n", timestamp, level:upper(), message)
+    
+    -- Write to file
+    log_file:write(log_message)
+    log_file:flush()
+    
+    -- Also print to console for immediate feedback
+    print(log_message)
+  end
+end
+
+-- Public logging methods
+function logger.debug(message)
+  log("debug", message)
+end
+
+function logger.info(message)
+  log("info", message)
+end
+
+function logger.warn(message)
+  log("warn", message)
+end
+
+function logger.error(message)
+  log("error", message)
+end
+
+-- Set log level
+function logger.set_level(level)
+  if LEVELS[level] then
+    current_level = LEVELS[level]
+    logger.info("Log level set to: " .. level)
+  else
+    logger.error("Invalid log level: " .. level)
+  end
+end
+
+-- Close the log file when exiting
+function logger.close()
+  if log_file then
+    logger.info("===== SomeWM Log Session Ended =====")
+    log_file:close()
+    log_file = nil
+  end
+end
+
+return logger
+
+================
+File: lua/wayland_surface.lua
+================
+-- wayland_surface.lua
+-- Handles creation and management of Wayland surfaces for widgets
+local logger = require("logger")
+local lgi = require("lgi")
+local cairo = lgi.cairo
+
+local wayland_surface = {}
+
+-- Function to create a basic surface
+function wayland_surface.create_widget_surface(width, height, x, y, text)
+    logger.info(string.format("Creating wayland surface: %dx%d at %d,%d", width, height, x, y))
+    
+    -- Check if notify-send is available
+    local notify_available = os.execute("which notify-send > /dev/null 2>&1")
+
+    if notify_available then
+        -- Create a simple notification command to use the system's notification
+        -- This is a temporary solution until we can properly integrate with Wayland
+        local escaped_text = text:gsub("'", "\\'") -- Escape single quotes
+        local cmd = string.format("notify-send 'SomeWM' '%s'", escaped_text)
+        
+        -- Execute the command
+        logger.debug("Executing system notification command: " .. cmd)
+        local result = os.execute(cmd)
+        
+        if result then
+            logger.info("System notification displayed successfully")
+            return true
+        else
+            logger.error("Failed to execute notify-send command")
+        end
+    else
+        -- Try an alternative method
+        logger.warn("notify-send not available, trying alternative approach")
+        
+        -- Try zenity if available
+        local zenity_available = os.execute("which zenity > /dev/null 2>&1")
+        if zenity_available then
+            local escaped_text = text:gsub('"', '\\"') -- Escape double quotes
+            local cmd = string.format('zenity --info --title="SomeWM Widget" --text="%s" --timeout=5', escaped_text)
+            logger.debug("Executing zenity command: " .. cmd)
+            local result = os.execute(cmd .. " &")
+            
+            if result then
+                logger.info("Zenity notification displayed successfully")
+                return true
+            else
+                logger.error("Failed to execute zenity command")
+            end
+        else
+            -- Try xmessage as a last resort
+            local xmessage_available = os.execute("which xmessage > /dev/null 2>&1")
+            if xmessage_available then
+                local escaped_text = text:gsub('"', '\\"') -- Escape double quotes
+                local cmd = string.format('xmessage -center "%s" -timeout 5', escaped_text)
+                logger.debug("Executing xmessage command: " .. cmd)
+                local result = os.execute(cmd .. " &")
+                
+                if result then
+                    logger.info("xmessage notification displayed successfully")
+                    return true
+                else
+                    logger.error("Failed to execute xmessage command")
+                end
+            else
+                logger.error("No notification methods available (notify-send, zenity, or xmessage)")
+                logger.error("Please install libnotify-bin, zenity, or x11-utils package")
+            end
+        end
+    end
+    
+    -- As a last resort, try the display_message function
+    return wayland_surface.display_message(text)
+end
+
+-- Function for a last-resort notification via dmenu or similar
+function wayland_surface.display_message(text)
+    logger.info("Attempting to display message: " .. text)
+    
+    -- Try dmenu if available
+    local dmenu_available = os.execute("which dmenu > /dev/null 2>&1")
+    if dmenu_available then
+        local cmd = string.format("echo '%s' | dmenu -p 'SomeWM:'", text:gsub("'", "'\\''"))
+        logger.debug("Executing dmenu command: " .. cmd)
+        local result = os.execute(cmd .. " &")
+        
+        if result then
+            logger.info("dmenu message displayed successfully")
+            return true
+        else
+            logger.error("Failed to execute dmenu command")
+        end
+    else
+        -- Try wmenu if available (Wayland version of dmenu)
+        local wmenu_available = os.execute("which wmenu > /dev/null 2>&1")
+        if wmenu_available then
+            local cmd = string.format("echo '%s' | wmenu -p 'SomeWM:'", text:gsub("'", "'\\''"))
+            logger.debug("Executing wmenu command: " .. cmd)
+            local result = os.execute(cmd .. " &")
+            
+            if result then
+                logger.info("wmenu message displayed successfully")
+                return true
+            else
+                logger.error("Failed to execute wmenu command")
+            end
+        else
+            -- Try rofi as a last resort
+            local rofi_available = os.execute("which rofi > /dev/null 2>&1")
+            if rofi_available then
+                local cmd = string.format("echo '%s' | rofi -dmenu -p 'SomeWM:'", text:gsub("'", "'\\''"))
+                logger.debug("Executing rofi command: " .. cmd)
+                local result = os.execute(cmd .. " &")
+                
+                if result then
+                    logger.info("rofi message displayed successfully")
+                    return true
+                else
+                    logger.error("Failed to execute rofi command")
+                end
+            else
+                logger.error("No message display methods available (dmenu, wmenu, or rofi)")
+                logger.error("Please install at least one of these packages")
+            end
+        end
+    end
+    
+    return false
+end
+
+-- Function to destroy a surface
+function wayland_surface.destroy_widget_surface(surface_id)
+    logger.info("Destroying wayland surface: " .. tostring(surface_id))
+    -- In a real implementation, we would destroy the Wayland surface
+    return true
+end
+
+return wayland_surface
+
+================
+File: lua/widgets.lua
+================
+local lgi = require("lgi")
+local cairo = lgi.cairo
+local drawable = require("basic_drawable")
+local logger = require("logger")
+local wayland_surface = require("wayland_surface")
+
+local widgets = {}
+
+-- The main widget manager
+widgets.active_widgets = {}
+
+-- Test function that doesn't rely on the C draw_widget function
+function widgets.test_notification(text, timeout)
+  logger.info("== Widget Test Function Called ==")
+  logger.info(string.format("Creating test notification with text: '%s'", text or "Test"))
+  
+  -- Test LGI directly
+  logger.debug("Testing LGI drawing capability")
+  
+  -- Let's try to use lgi directly
+  local surface = cairo.ImageSurface.create(cairo.Format.ARGB32, 300, 100)
+  local cr = cairo.Context.create(surface)
+  
+  logger.debug("Created test surface and context")
+  
+  -- Draw background
+  cr:set_source_rgba(0.2, 0.2, 0.2, 0.8)
+  cr:rectangle(0, 0, 300, 100)
+  cr:fill()
+  
+  -- Draw border
+  cr:set_source_rgb(0.3, 0.6, 1)
+  cr:set_line_width(2)
+  cr:rectangle(1, 1, 298, 98)
+  cr:stroke()
+  
+  -- Draw text
+  cr:set_source_rgb(1, 1, 1)
+  cr:select_font_face("Sans", cairo.FontSlant.NORMAL, cairo.FontWeight.BOLD)
+  cr:set_font_size(16)
+  
+  local test_text = text or "Test Notification"
+  local text_extents = cr:text_extents(test_text)
+  local x = (300 - text_extents.width) / 2
+  local y = (100 + text_extents.height) / 2
+  
+  cr:move_to(x, y)
+  cr:show_text(test_text)
+  
+  logger.info("LGI drawing test completed successfully")
+  
+  -- Now use the Wayland surface method to actually display something
+  logger.debug("Now trying Wayland surface method")
+  local result = wayland_surface.create_widget_surface(300, 100, 100, 100, test_text)
+  if result then
+    logger.info("Wayland surface created successfully")
+  else
+    logger.error("Failed to create Wayland surface")
+  end
+  
+  logger.info("== Widget Test Function Completed ==")
+  return true
+end
+
+-- Basic widget drawing function using Cairo
+-- This will be called by the C function
+function widgets.draw_simple_widget(width, height, surface_pointer, text)
+  logger.debug(string.format("Drawing widget: %dx%d with text '%s'", width, height, text or ""))
+  
+  -- Use our notification drawer from the basic_drawable module
+  if surface_pointer then
+    drawable.draw_notification(width, height, surface_pointer, text)
+    logger.debug("Drew on surface successfully")
+  else
+    logger.warn("No surface pointer provided, widget won't be displayed")
+  end
+  
+  -- Return success
+  return true
+end
+
+-- Create a notification widget
+function widgets.create_notification(text, timeout)
+  logger.info(string.format("Creating notification with text: '%s'", text))
+  
+  local widget = {
+    text = text,
+    timeout = timeout or 3, -- Default timeout of 3 seconds
+    width = 300,
+    height = 100,
+    x = 50,
+    y = 50
+  }
+  
+  -- Store the widget
+  table.insert(widgets.active_widgets, widget)
+  logger.debug(string.format("Added widget to active_widgets, count: %d", #widgets.active_widgets))
+  
+  -- Show the widget
+  widgets.show_widget(widget)
+  
+  return widget
+end
+
+-- Show a widget on screen
+function widgets.show_widget(widget)
+  logger.info(string.format("Showing widget at position %d,%d with size %dx%d", 
+                           widget.x, widget.y, widget.width, widget.height))
+  
+  -- First try the direct Wayland surface method
+  logger.debug("Attempting to create Wayland surface directly")
+  local surface_created = wayland_surface.create_widget_surface(
+    widget.width,
+    widget.height,
+    widget.x,
+    widget.y,
+    widget.text
+  )
+  
+  if surface_created then
+    logger.info("Widget displayed using Wayland surface")
+  else
+    -- Fallback to the original method
+    logger.debug("Falling back to C draw_widget function")
+    Some.draw_widget(
+      widget.width, 
+      widget.height, 
+      widget.x, 
+      widget.y, 
+      "widgets.draw_simple_widget",
+      widget.text
+    )
+    logger.debug("Returned from Some.draw_widget")
+  end
+  
+  -- Store the widget creation time to implement timeout
+  widget.created_at = os.time()
+  
+  -- Set a timer to hide the widget after timeout
+  logger.info(string.format("Widget will be visible for %d seconds", widget.timeout))
+  logger.debug(string.format("(In a real implementation, the widget would be hidden after %d seconds)", widget.timeout))
+end
+
+-- Hide a widget
+function widgets.hide_widget(widget)
+  logger.info("Hiding widget")
+  
+  -- Destroy the Wayland surface if it exists
+  if widget.surface_id then
+    wayland_surface.destroy_widget_surface(widget.surface_id)
+    widget.surface_id = nil
+  end
+  
+  -- Find and remove the widget
+  for i, w in ipairs(widgets.active_widgets) do
+    if w == widget then
+      table.remove(widgets.active_widgets, i)
+      logger.debug(string.format("Removed widget from active_widgets, remaining: %d", #widgets.active_widgets))
+      break
+    end
+  end
+  
+  logger.debug("Widget hidden")
+end
+
+return widgets
 
 ================
 File: protocols/wlr-layer-shell-unstable-v1.xml
@@ -901,9 +1321,33 @@ local lgi = require("lgi")
 local cairo = lgi.cairo
 
 function draw_surface(width, height, cairo_surface_pointer)
-  local surface = cairo.Surface.wrap_pointer(cairo_surface_pointer)
+  print("[DEBUG] draw_surface called with dimensions: " .. width .. "x" .. height)
+  local surface = nil
+  
+  -- Safety check
+  if not cairo_surface_pointer then
+    print("[ERROR] No cairo surface pointer provided to draw_surface")
+    return false
+  end
+  
+  -- Wrap the cairo surface pointer with error handling
+  local ok, err = pcall(function()
+    surface = cairo.Surface.wrap_pointer(cairo_surface_pointer)
+  end)
+  
+  if not ok then
+    print("[ERROR] Failed to wrap cairo surface pointer: " .. tostring(err))
+    return false
+  end
+  
+  if not surface then
+    print("[ERROR] Failed to create cairo surface")
+    return false
+  end
+  
   local cr = cairo.Context.create(surface)
 
+  print("[DEBUG] Drawing to cairo surface")
   cr:set_source_rgb(1, 1, 1)
   cr:paint()
 
@@ -916,10 +1360,75 @@ function draw_surface(width, height, cairo_surface_pointer)
   cr:set_font_size(24)
   cr:move_to(100, 100)
   cr:show_text("Hello, SomeWM!")
+  
+  print("[DEBUG] Drawing completed successfully")
+  return true
+end
+
+-- Draw a simple notification widget
+function draw_notification(width, height, cairo_surface_pointer, text)
+  print("[DEBUG] draw_notification called - size: " .. width .. "x" .. height .. ", text: " .. (text or "<nil>"))
+  
+  -- Safety check
+  if not cairo_surface_pointer then
+    print("[ERROR] No cairo surface pointer provided to draw_notification")
+    return false
+  end
+  
+  -- Wrap the cairo surface pointer with error handling
+  local surface = nil
+  local ok, err = pcall(function()
+    surface = cairo.Surface.wrap_pointer(cairo_surface_pointer)
+  end)
+  
+  if not ok then
+    print("[ERROR] Failed to wrap cairo surface pointer: " .. tostring(err))
+    return false
+  end
+  
+  if not surface then
+    print("[ERROR] Failed to create cairo surface")
+    return false
+  end
+
+  print("[DEBUG] Creating context and starting to draw notification")
+  local cr = cairo.Context.create(surface)
+
+  -- Draw background
+  cr:set_source_rgba(0.2, 0.2, 0.2, 0.8) -- Semi-transparent dark background
+  cr:rectangle(0, 0, width, height)
+  cr:fill()
+
+  -- Draw border
+  cr:set_source_rgb(0.3, 0.6, 1) -- Blue border
+  cr:set_line_width(2)
+  cr:rectangle(1, 1, width - 2, height - 2)
+  cr:stroke()
+
+  -- Draw text
+  cr:set_source_rgb(1, 1, 1)
+  cr:select_font_face("Sans", cairo.FontSlant.NORMAL, cairo.FontWeight.BOLD)
+  cr:set_font_size(16)
+  
+  -- Center the text
+  local text_to_display = text or "Notification"
+  local text_extents = cr:text_extents(text_to_display)
+  local x = (width - text_extents.width) / 2
+  local y = (height + text_extents.height) / 2
+  
+  print("[DEBUG] Drawing text: '" .. text_to_display .. "' at position " .. x .. "," .. y)
+  cr:move_to(x, y)
+  cr:show_text(text_to_display)
+
+  -- Clean up
+  cr:surface():finish()
+  print("[DEBUG] Notification drawing completed successfully")
+  return true
 end
 
 return {
   draw_surface = draw_surface,
+  draw_notification = draw_notification,
 }
 
 ================
@@ -3639,10 +4148,43 @@ int keybinding(uint32_t mods, xkb_keysym_t sym) {
    * the C bindings from config.h
    */
   const Key *k;
+  char msg[256];
+
+  // Log the key press if logger is available
+  if (L) {
+    lua_getglobal(L, "logger");
+    if (!lua_isnil(L, -1)) {
+      snprintf(msg, sizeof(msg), "Key pressed: mods=%u, sym=%u (0x%x)", 
+               CLEANMASK(mods), sym, sym);
+      lua_getfield(L, -1, "debug");
+      lua_pushstring(L, msg);
+      if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+        fprintf(stderr, "Error logging key press: %s\n", lua_tostring(L, -1));
+        lua_pop(L, 1);  // Error message
+      }
+      lua_pop(L, 1);  // Logger table
+    } else {
+      lua_pop(L, 1);  // nil
+    }
+  }
 
   for (size_t i = 0; i < num_lua_keys; i++) {
 if (CLEANMASK(mods) == CLEANMASK(lua_keys[i].mod) && sym == lua_keys[i].keysym) {
   if (lua_keys[i].press_ref != LUA_REFNIL) {
+    if (L) {
+      lua_getglobal(L, "logger");
+      if (!lua_isnil(L, -1)) {
+        snprintf(msg, sizeof(msg), "Executing Lua keybinding for mods=%u, sym=%u", 
+                 CLEANMASK(mods), sym);
+        lua_getfield(L, -1, "info");
+        lua_pushstring(L, msg);
+        lua_pcall(L, 1, 0, 0);
+        lua_pop(L, 1);  // Logger table
+      } else {
+        lua_pop(L, 1);  // nil
+      }
+    }
+    
     lua_rawgeti(L, LUA_REGISTRYINDEX, lua_keys[i].press_ref);
     if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
       fprintf(stderr, "Error calling Lua function: %s\n", lua_tostring(L, -1));
@@ -3655,10 +4197,39 @@ if (CLEANMASK(mods) == CLEANMASK(lua_keys[i].mod) && sym == lua_keys[i].keysym) 
 
   for (k = keys; k < END(keys); k++) {
     if (CLEANMASK(mods) == CLEANMASK(k->mod) && sym == k->keysym && k->func) {
+      if (L) {
+        lua_getglobal(L, "logger");
+        if (!lua_isnil(L, -1)) {
+          snprintf(msg, sizeof(msg), "Executing C keybinding for mods=%u, sym=%u", 
+                   CLEANMASK(mods), sym);
+          lua_getfield(L, -1, "info");
+          lua_pushstring(L, msg);
+          lua_pcall(L, 1, 0, 0);
+          lua_pop(L, 1);  // Logger table
+        } else {
+          lua_pop(L, 1);  // nil
+        }
+      }
+      
       k->func(&k->arg);
       return 1;
     }
   }
+  
+  if (L) {
+    lua_getglobal(L, "logger");
+    if (!lua_isnil(L, -1)) {
+      snprintf(msg, sizeof(msg), "No keybinding found for mods=%u, sym=%u", 
+               CLEANMASK(mods), sym);
+      lua_getfield(L, -1, "debug");
+      lua_pushstring(L, msg);
+      lua_pcall(L, 1, 0, 0);
+      lua_pop(L, 1);  // Logger table
+    } else {
+      lua_pop(L, 1);  // nil
+    }
+  }
+  
   return 0;
 }
 
@@ -6240,10 +6811,131 @@ static int l_get_keysym(lua_State *L) {
   return 1;
 }
 
+static int l_log(lua_State *L) {
+  const char *level = luaL_checkstring(L, 1);
+  const char *message = luaL_checkstring(L, 2);
+  
+  // Call the Lua logger
+  lua_getglobal(L, "logger");
+  if (lua_isnil(L, -1)) {
+    fprintf(stderr, "Error: logger module not loaded\n");
+    lua_pop(L, 1);
+    return 0;
+  }
+  
+  lua_getfield(L, -1, level);
+  if (lua_isnil(L, -1)) {
+    fprintf(stderr, "Error: invalid log level: %s\n", level);
+    lua_pop(L, 2);
+    return 0;
+  }
+  
+  lua_pushstring(L, message);
+  if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+    fprintf(stderr, "Error calling logger.%s: %s\n", level, lua_tostring(L, -1));
+    lua_pop(L, 2); // Error and logger table
+    return 0;
+  }
+  
+  lua_pop(L, 1); // Pop logger table
+  return 0;
+}
+
+static int l_draw_widget(lua_State *L) {
+  int width = luaL_checkinteger(L, 1);
+  int height = luaL_checkinteger(L, 2);
+  double x = luaL_checknumber(L, 3);
+  double y = luaL_checknumber(L, 4);
+  const char *draw_function = luaL_checkstring(L, 5);
+  const char *text = lua_isstring(L, 6) ? lua_tostring(L, 6) : "Notification";
+  char msg[256];
+  
+  // Log to the Lua logger
+  lua_getglobal(L, "logger");
+  if (!lua_isnil(L, -1)) {
+    snprintf(msg, sizeof(msg), "C: Draw widget called - size=%dx%d, pos=%.1f,%.1f, drawer=%s", 
+             width, height, x, y, draw_function);
+    lua_getfield(L, -1, "info");
+    lua_pushstring(L, msg);
+    if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+      fprintf(stderr, "Error logging widget draw: %s\n", lua_tostring(L, -1));
+      lua_pop(L, 1);  // Error message
+    }
+    lua_pop(L, 1);  // Logger table
+  } else {
+    fprintf(stderr, "Drawing widget at %f,%f with dimensions %dx%d using %s\n", x, y, width, height, draw_function);
+    lua_pop(L, 1);  // nil
+  }
+  
+  // Call the Lua function to draw the widget
+  // Push the function name to get the actual function
+  lua_getglobal(L, draw_function);
+  
+  if (lua_isnil(L, -1)) {
+    lua_getglobal(L, "logger");
+    if (!lua_isnil(L, -1)) {
+      snprintf(msg, sizeof(msg), "C: ERROR - Draw function '%s' not found!", draw_function);
+      lua_getfield(L, -1, "error");
+      lua_pushstring(L, msg);
+      lua_pcall(L, 1, 0, 0);
+      lua_pop(L, 1);  // Logger table
+    } else {
+      fprintf(stderr, "ERROR: Draw function '%s' not found!\n", draw_function);
+      lua_pop(L, 1);  // nil
+    }
+    lua_pop(L, 1);  // nil function
+    return 1;
+  }
+  
+  // Create a temporary Cairo surface for drawing
+  // In a real implementation, this would be integrated with your Wayland compositor
+  
+  // Pass parameters to the Lua function
+  lua_pushinteger(L, width);
+  lua_pushinteger(L, height);
+  lua_pushnil(L);  // We would pass a real surface pointer here in a full implementation
+  lua_pushstring(L, text);
+  
+  // Call the Lua function (4 arguments, 0 returns)
+  if (lua_pcall(L, 4, 0, 0) != LUA_OK) {
+    lua_getglobal(L, "logger");
+    if (!lua_isnil(L, -1)) {
+      snprintf(msg, sizeof(msg), "C: ERROR calling Lua draw function: %s", lua_tostring(L, -2));
+      lua_getfield(L, -1, "error");
+      lua_pushstring(L, msg);
+      lua_pcall(L, 1, 0, 0);
+      lua_pop(L, 1);  // Logger table
+    } else {
+      fprintf(stderr, "Error calling Lua draw function: %s\n", lua_tostring(L, -1));
+      lua_pop(L, 1);  // nil
+    }
+    lua_pop(L, 1);  // Error message
+    return 1;
+  }
+  
+  // In a real implementation, we would now add the surface to the Wayland scene
+  // at position x,y and make it visible
+  lua_getglobal(L, "logger");
+  if (!lua_isnil(L, -1)) {
+    snprintf(msg, sizeof(msg), "C: Widget '%s' drawing completed successfully", text);
+    lua_getfield(L, -1, "info");
+    lua_pushstring(L, msg);
+    lua_pcall(L, 1, 0, 0);
+    lua_pop(L, 1);  // Logger table
+  } else {
+    fprintf(stderr, "Widget with text '%s' would now be visible at %f,%f\n", text, x, y);
+    lua_pop(L, 1);  // nil
+  }
+  
+  return 0;
+}
+
 static const struct luaL_Reg somelib[] = {{"hello_world", l_hello_world},
                                           {"spawn", l_spawn},
                                           {"restart", l_restart},
                                           {"quit", l_quit},
+                                          {"draw_widget", l_draw_widget},
+                                          {"log", l_log},
                                           {NULL, NULL}};
 
 static int luaopen_some(lua_State *lua) {
@@ -6314,8 +7006,20 @@ void cleanup_lua(void) {
 static int l_register_key_binding(lua_State *L) {
   uint32_t mods = lua_tointeger(L, 1);
   xkb_keysym_t keysym = lua_tointeger(L, 2);
-  fprintf(stderr, "C: Registering binding - mods: %u, keysym: %u\n", mods,
-          keysym);
+  char msg[256];
+  snprintf(msg, sizeof(msg), "Registering binding - mods: %u, keysym: %u", mods, keysym);
+  
+  // Log the registration
+  lua_getglobal(L, "logger");
+  if (!lua_isnil(L, -1)) {
+    lua_getfield(L, -1, "info");
+    lua_pushstring(L, msg);
+    lua_pcall(L, 1, 0, 0);
+    lua_pop(L, 1); // Pop logger table
+  } else {
+    fprintf(stderr, "%s\n", msg);
+    lua_pop(L, 1); // Pop nil
+  }
 
   int press_ref = LUA_REFNIL;
   int release_ref = LUA_REFNIL;
@@ -6323,11 +7027,27 @@ static int l_register_key_binding(lua_State *L) {
   if (!lua_isnil(L, 3)) {
     lua_pushvalue(L, 3);
     press_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    
+    lua_getglobal(L, "logger");
+    if (!lua_isnil(L, -1)) {
+      lua_getfield(L, -1, "debug");
+      lua_pushstring(L, "Registered press callback");
+      lua_pcall(L, 1, 0, 0);
+      lua_pop(L, 1); // Pop logger table
+    }
   }
 
   if (!lua_isnil(L, 4)) {
     lua_pushvalue(L, 4);
     release_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    
+    lua_getglobal(L, "logger");
+    if (!lua_isnil(L, -1)) {
+      lua_getfield(L, -1, "debug");
+      lua_pushstring(L, "Registered release callback");
+      lua_pcall(L, 1, 0, 0);
+      lua_pop(L, 1); // Pop logger table
+    }
   }
 
   lua_keys = realloc(lua_keys, (num_lua_keys + 1) * sizeof(LuaKey));
@@ -6339,6 +7059,18 @@ static int l_register_key_binding(lua_State *L) {
                                     .press_ref = press_ref,
                                     .release_ref = release_ref};
   num_lua_keys++;
+  
+  snprintf(msg, sizeof(msg), "Binding registered successfully, total bindings: %zu", num_lua_keys);
+  lua_getglobal(L, "logger");
+  if (!lua_isnil(L, -1)) {
+    lua_getfield(L, -1, "info");
+    lua_pushstring(L, msg);
+    lua_pcall(L, 1, 0, 0);
+    lua_pop(L, 1); // Pop logger table
+  } else {
+    fprintf(stderr, "%s\n", msg);
+    lua_pop(L, 1); // Pop nil
+  }
 
   return 0;
 }
@@ -6352,6 +7084,7 @@ void init_lua(void) {
     lua_close(L);
   }
 
+  fprintf(stderr, "Initializing Lua environment...\n");
   L = luaL_newstate();
   if (L == NULL) {
     fprintf(stderr, "Failed to create Lua state\n");
@@ -6376,11 +7109,28 @@ void init_lua(void) {
   lua_pushcfunction(L, l_get_keysym);
   lua_setglobal(L, "get_keysym_native");
 
+  fprintf(stderr, "Loading rc.lua...\n");
   if (luaL_dofile(L, "rc.lua") != LUA_OK) {
     fprintf(stderr, "Error loading rc.lua: %s\n", lua_tostring(L, -1));
     lua_close(L);
     L = NULL;
     return;
+  }
+
+  fprintf(stderr, "Lua initialization complete\n");
+  
+  // Let's log a startup message if the logger is available
+  lua_getglobal(L, "logger");
+  if (!lua_isnil(L, -1)) {
+    lua_getfield(L, -1, "info");
+    lua_pushstring(L, "C: Lua environment initialized successfully");
+    if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+      fprintf(stderr, "Error logging startup: %s\n", lua_tostring(L, -1));
+      lua_pop(L, 1);  // Error message
+    }
+    lua_pop(L, 1);  // Logger table
+  } else {
+    lua_pop(L, 1);  // nil
   }
 }
 
@@ -6567,6 +7317,12 @@ uninstall:
 File: rc.lua
 ================
 local awful = require("awful")
+local widgets = require("widgets")
+local logger = require("logger")
+
+-- Initialize logger
+logger.init()
+logger.info("SomeWM starting up")
 
 local modkey = "logo"
 local shift = "Shift"
@@ -6636,6 +7392,74 @@ awful.key({
   group = "applications",
   on_press = function()
     Some.spawn('grim -g "$(slurp)" - | wl-copy')
+  end,
+})
+
+-- Add a keybinding to show a widget
+awful.key({
+  modifiers = { modkey },
+  key = "w",
+  description = "show a test widget",
+  group = "widgets",
+  on_press = function()
+    logger.info("'w' key pressed, creating notification widget")
+    local ok, err = pcall(function()
+      widgets.create_notification("Hello from SomeWM!", 5)
+    end)
+    if not ok then
+      logger.error("Failed to create widget: " .. tostring(err))
+    else
+      logger.info("Widget creation successful")
+    end
+  end,
+})
+
+-- Add a keybinding to test LGI directly without C integration
+awful.key({
+  modifiers = { modkey },
+  key = "g",
+  description = "test lgi widget drawing",
+  group = "widgets",
+  on_press = function()
+    logger.info("'g' key pressed, running direct LGI test")
+    local ok, err = pcall(function()
+      widgets.test_notification("Direct LGI Test", 5)
+    end)
+    if not ok then
+      logger.error("Failed to run LGI test: " .. tostring(err))
+    else
+      logger.info("LGI test completed successfully")
+    end
+  end,
+})
+
+-- Add a keybinding specifically for testing the notification system
+awful.key({
+  modifiers = { modkey },
+  key = "n",
+  description = "test notification system",
+  group = "widgets",
+  on_press = function()
+    logger.info("'n' key pressed, testing notification system")
+    
+    -- Use the system's notification directly
+    local wayland_surface = require("wayland_surface")
+    wayland_surface.create_widget_surface(300, 100, 50, 50, "Test Notification via system notification")
+  end,
+})
+
+-- Add a keybinding to test alternative notification methods
+awful.key({
+  modifiers = { modkey },
+  key = "d",
+  description = "test menu-based notification",
+  group = "widgets",
+  on_press = function()
+    logger.info("'d' key pressed, testing menu-based notification")
+    
+    -- Use the direct message display function
+    local wayland_surface = require("wayland_surface")
+    wayland_surface.display_message("Test menu-based notification")
   end,
 })
 
