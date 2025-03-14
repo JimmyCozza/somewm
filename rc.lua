@@ -1,6 +1,7 @@
 local awful = require("awful")
 local widgets = require("widgets")
 local logger = require("logger")
+local drawable = require("basic_drawable")
 
 -- Initialize logger
 logger.init()

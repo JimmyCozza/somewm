@@ -3,7 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
+// Cairo header will be included when needed
 
 #include "util.h"
 
@@ -106,6 +108,33 @@ static int l_log(lua_State *L) {
   return 0;
 }
 
+// Simplified widget-related functions
+static int l_create_notification(lua_State *L) {
+  const char *text = luaL_checkstring(L, 1);
+  int timeout = luaL_optinteger(L, 2, 3);  // Default timeout: 3 seconds
+  char msg[256];
+  
+  // Log the notification creation
+  lua_getglobal(L, "logger");
+  if (!lua_isnil(L, -1)) {
+    snprintf(msg, sizeof(msg), "Creating notification with text: '%s'", text);
+    lua_getfield(L, -1, "info");
+    lua_pushstring(L, msg);
+    lua_pcall(L, 1, 0, 0);
+    lua_pop(L, 1);  // Logger table
+  } else {
+    fprintf(stderr, "Creating notification with text: '%s'\n", text);
+    lua_pop(L, 1);  // nil
+  }
+  
+  // In a real implementation, we'd create a notification widget here
+  // For now, just print to the console
+  fprintf(stderr, "NOTIFICATION: %s (timeout: %d seconds)\n", text, timeout);
+  
+  // Return success
+  return 0;
+}
+
 static int l_draw_widget(lua_State *L) {
   int width = luaL_checkinteger(L, 1);
   int height = luaL_checkinteger(L, 2);
@@ -132,7 +161,7 @@ static int l_draw_widget(lua_State *L) {
     lua_pop(L, 1);  // nil
   }
   
-  // Call the Lua function to draw the widget
+  // For now, just call the Lua function to draw the widget
   // Push the function name to get the actual function
   lua_getglobal(L, draw_function);
   
@@ -151,9 +180,6 @@ static int l_draw_widget(lua_State *L) {
     lua_pop(L, 1);  // nil function
     return 1;
   }
-  
-  // Create a temporary Cairo surface for drawing
-  // In a real implementation, this would be integrated with your Wayland compositor
   
   // Pass parameters to the Lua function
   lua_pushinteger(L, width);
@@ -195,11 +221,20 @@ static int l_draw_widget(lua_State *L) {
   return 0;
 }
 
+// Dummy function for now
+static int l_destroy_widget(lua_State *L) {
+  fprintf(stderr, "destroy_widget called\n");
+  return 0;
+}
+
 static const struct luaL_Reg somelib[] = {{"hello_world", l_hello_world},
                                           {"spawn", l_spawn},
                                           {"restart", l_restart},
                                           {"quit", l_quit},
+                                          {"create_notification", l_create_notification},
                                           {"draw_widget", l_draw_widget},
+                                          {"destroy_widget", l_destroy_widget},
+                                          {"create_widget", l_create_notification},
                                           {"log", l_log},
                                           {NULL, NULL}};
 
@@ -343,6 +378,8 @@ static int l_register_key_binding(lua_State *L) {
 LuaKey *lua_keys = NULL;
 size_t num_lua_keys = 0;
 
+// Forward declarations will be added when needed
+
 void init_lua(void) {
   const char *lua_path = "./lua/?.lua;./lua/?/init.lua;";
   if (L != NULL) {
@@ -373,6 +410,8 @@ void init_lua(void) {
   lua_setglobal(L, "register_key_binding");
   lua_pushcfunction(L, l_get_keysym);
   lua_setglobal(L, "get_keysym_native");
+  
+  // Widget initialization happens on demand
 
   fprintf(stderr, "Loading rc.lua...\n");
   if (luaL_dofile(L, "rc.lua") != LUA_OK) {

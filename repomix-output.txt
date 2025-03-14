@@ -67,6 +67,7 @@ protocols/
 .mailmap
 .stylua.toml
 basic_drawable.lua
+build_test.sh
 CHANGELOG.md
 client.h
 config.def.h
@@ -605,70 +606,61 @@ local widgets = {}
 -- The main widget manager
 widgets.active_widgets = {}
 
--- Test function that doesn't rely on the C draw_widget function
+-- Test function to verify that our notification system works
 function widgets.test_notification(text, timeout)
   logger.info("== Widget Test Function Called ==")
   logger.info(string.format("Creating test notification with text: '%s'", text or "Test"))
   
-  -- Test LGI directly
-  logger.debug("Testing LGI drawing capability")
-  
-  -- Let's try to use lgi directly
-  local surface = cairo.ImageSurface.create(cairo.Format.ARGB32, 300, 100)
-  local cr = cairo.Context.create(surface)
-  
-  logger.debug("Created test surface and context")
-  
-  -- Draw background
-  cr:set_source_rgba(0.2, 0.2, 0.2, 0.8)
-  cr:rectangle(0, 0, 300, 100)
-  cr:fill()
-  
-  -- Draw border
-  cr:set_source_rgb(0.3, 0.6, 1)
-  cr:set_line_width(2)
-  cr:rectangle(1, 1, 298, 98)
-  cr:stroke()
-  
-  -- Draw text
-  cr:set_source_rgb(1, 1, 1)
-  cr:select_font_face("Sans", cairo.FontSlant.NORMAL, cairo.FontWeight.BOLD)
-  cr:set_font_size(16)
-  
   local test_text = text or "Test Notification"
-  local text_extents = cr:text_extents(test_text)
-  local x = (300 - text_extents.width) / 2
-  local y = (100 + text_extents.height) / 2
+  timeout = timeout or 5
   
-  cr:move_to(x, y)
-  cr:show_text(test_text)
+  -- First try to create a notification with our new system
+  logger.debug("Testing direct widget creation")
   
-  logger.info("LGI drawing test completed successfully")
+  local widget = widgets.create_notification(test_text, timeout)
+  if widget then
+    logger.info("Created notification widget successfully through native method")
+    return widget
+  end
   
-  -- Now use the Wayland surface method to actually display something
-  logger.debug("Now trying Wayland surface method")
+  -- If the native method failed, fall back to the old method
+  logger.warn("Native widget creation failed, trying fallback methods")
+  
+  -- Try using the Wayland surface method as a fallback
+  logger.debug("Falling back to Wayland surface method")
   local result = wayland_surface.create_widget_surface(300, 100, 100, 100, test_text)
+  
   if result then
-    logger.info("Wayland surface created successfully")
+    logger.info("Wayland surface created successfully using fallback")
   else
-    logger.error("Failed to create Wayland surface")
+    logger.error("All notification methods failed")
   end
   
   logger.info("== Widget Test Function Completed ==")
-  return true
+  return result
 end
 
 -- Basic widget drawing function using Cairo
 -- This will be called by the C function
-function widgets.draw_simple_widget(width, height, surface_pointer, text)
+function widgets.draw_simple_widget(width, height, cairo_context, text)
   logger.debug(string.format("Drawing widget: %dx%d with text '%s'", width, height, text or ""))
   
   -- Use our notification drawer from the basic_drawable module
-  if surface_pointer then
-    drawable.draw_notification(width, height, surface_pointer, text)
-    logger.debug("Drew on surface successfully")
+  if cairo_context then
+    local ok, err = pcall(function()
+      local drawable = require("basic_drawable")
+      drawable.draw_notification(width, height, cairo_context, text)
+    end)
+    
+    if ok then
+      logger.debug("Drew on Cairo context successfully")
+    else
+      logger.error("Error drawing on Cairo context: " .. tostring(err))
+      return false
+    end
   else
-    logger.warn("No surface pointer provided, widget won't be displayed")
+    logger.warn("No Cairo context provided, widget won't be displayed")
+    return false
   end
   
   -- Return success
@@ -679,84 +671,87 @@ end
 function widgets.create_notification(text, timeout)
   logger.info(string.format("Creating notification with text: '%s'", text))
   
-  local widget = {
-    text = text,
-    timeout = timeout or 3, -- Default timeout of 3 seconds
-    width = 300,
-    height = 100,
-    x = 50,
-    y = 50
-  }
+  -- Get current monitor dimensions for better placement
+  local width = 300
+  local height = 100
+  local x = 50 -- TODO: Get actual screen dimensions to calculate better positioning
+  local y = 50
   
-  -- Store the widget
-  table.insert(widgets.active_widgets, widget)
-  logger.debug(string.format("Added widget to active_widgets, count: %d", #widgets.active_widgets))
+  -- Create the widget through C API
+  logger.debug("Calling Some.create_widget function")
+  local widget_ptr = Some.create_widget(width, height, x, y, timeout or 5, text)
   
-  -- Show the widget
-  widgets.show_widget(widget)
-  
-  return widget
-end
-
--- Show a widget on screen
-function widgets.show_widget(widget)
-  logger.info(string.format("Showing widget at position %d,%d with size %dx%d", 
-                           widget.x, widget.y, widget.width, widget.height))
-  
-  -- First try the direct Wayland surface method
-  logger.debug("Attempting to create Wayland surface directly")
-  local surface_created = wayland_surface.create_widget_surface(
-    widget.width,
-    widget.height,
-    widget.x,
-    widget.y,
-    widget.text
-  )
-  
-  if surface_created then
-    logger.info("Widget displayed using Wayland surface")
-  else
-    -- Fallback to the original method
-    logger.debug("Falling back to C draw_widget function")
-    Some.draw_widget(
-      widget.width, 
-      widget.height, 
-      widget.x, 
-      widget.y, 
-      "widgets.draw_simple_widget",
-      widget.text
-    )
-    logger.debug("Returned from Some.draw_widget")
+  if not widget_ptr then
+    logger.error("Failed to create widget")
+    return nil
   end
   
-  -- Store the widget creation time to implement timeout
-  widget.created_at = os.time()
+  logger.debug("Widget created successfully, drawing content...")
   
-  -- Set a timer to hide the widget after timeout
-  logger.info(string.format("Widget will be visible for %d seconds", widget.timeout))
-  logger.debug(string.format("(In a real implementation, the widget would be hidden after %d seconds)", widget.timeout))
+  -- Draw the widget content using our Lua drawing function
+  local ok, err = pcall(function()
+    Some.draw_widget(widget_ptr, "drawable.draw_notification", text)
+  end)
+  
+  if not ok then
+    logger.error("Error drawing widget: " .. tostring(err))
+    Some.destroy_widget(widget_ptr)
+    return nil
+  end
+  
+  -- Return the widget pointer for future reference
+  return widget_ptr
+end
+
+-- Show a widget on screen (legacy function)
+function widgets.show_widget(widget)
+  -- This function is now deprecated, as widgets are created and shown in one step
+  -- using create_notification()
+  logger.warn("widgets.show_widget is deprecated, use create_notification instead")
+  
+  if type(widget) == "userdata" then
+    -- It's already a widget pointer, just make sure it's visible
+    logger.info("Received widget pointer, already visible")
+    return true
+  elseif type(widget) == "table" and widget.text then
+    -- Legacy widget table, create a new widget using the new API
+    logger.info("Converting legacy widget to new API")
+    return widgets.create_notification(widget.text, widget.timeout)
+  else
+    logger.error("Invalid widget passed to show_widget")
+    return false
+  end
 end
 
 -- Hide a widget
 function widgets.hide_widget(widget)
   logger.info("Hiding widget")
   
-  -- Destroy the Wayland surface if it exists
-  if widget.surface_id then
+  if type(widget) == "userdata" then
+    -- It's a widget pointer from the new API
+    Some.destroy_widget(widget)
+    logger.debug("Widget destroyed using Some.destroy_widget")
+    return true
+  elseif type(widget) == "table" and widget.surface_id then
+    -- Legacy widget with a Wayland surface ID
     wayland_surface.destroy_widget_surface(widget.surface_id)
     widget.surface_id = nil
-  end
-  
-  -- Find and remove the widget
-  for i, w in ipairs(widgets.active_widgets) do
-    if w == widget then
-      table.remove(widgets.active_widgets, i)
-      logger.debug(string.format("Removed widget from active_widgets, remaining: %d", #widgets.active_widgets))
-      break
+    
+    -- Find and remove the widget from active_widgets
+    for i, w in ipairs(widgets.active_widgets) do
+      if w == widget then
+        table.remove(widgets.active_widgets, i)
+        logger.debug(string.format("Removed widget from active_widgets, remaining: %d", #widgets.active_widgets))
+        break
+      end
     end
+    
+    logger.debug("Legacy widget hidden")
+    return true
+  else
+    logger.error("Invalid widget passed to hide_widget")
+    return false
   end
-  
-  logger.debug("Widget hidden")
 end
 
 return widgets
@@ -1366,44 +1361,67 @@ function draw_surface(width, height, cairo_surface_pointer)
 end
 
 -- Draw a simple notification widget
-function draw_notification(width, height, cairo_surface_pointer, text)
-  print("[DEBUG] draw_notification called - size: " .. width .. "x" .. height .. ", text: " .. (text or "<nil>"))
+function draw_notification(width, height, cairo_context, text)
+  local logger = require("logger")
+  logger.debug("draw_notification called - size: " .. width .. "x" .. height .. ", text: " .. (text or "<nil>"))
   
   -- Safety check
-  if not cairo_surface_pointer then
-    print("[ERROR] No cairo surface pointer provided to draw_notification")
+  if not cairo_context then
+    logger.error("No cairo context provided to draw_notification")
     return false
   end
   
-  -- Wrap the cairo surface pointer with error handling
-  local surface = nil
+  -- Wrap the cairo context pointer with error handling
+  local cr = nil
   local ok, err = pcall(function()
-    surface = cairo.Surface.wrap_pointer(cairo_surface_pointer)
+    cr = cairo.Context.wrap(cairo_context)
   end)
   
   if not ok then
-    print("[ERROR] Failed to wrap cairo surface pointer: " .. tostring(err))
+    logger.error("Failed to wrap cairo context: " .. tostring(err))
     return false
   end
   
-  if not surface then
-    print("[ERROR] Failed to create cairo surface")
+  if not cr then
+    logger.error("Failed to create cairo context")
     return false
   end
 
-  print("[DEBUG] Creating context and starting to draw notification")
-  local cr = cairo.Context.create(surface)
+  logger.debug("Starting to draw notification with Cairo")
 
-  -- Draw background
-  cr:set_source_rgba(0.2, 0.2, 0.2, 0.8) -- Semi-transparent dark background
-  cr:rectangle(0, 0, width, height)
-  cr:fill()
-
+  -- Draw background with rounded corners
+  cr:save()
+  local radius = 10
+  
+  -- Path for rounded rectangle
+  cr:new_sub_path()
+  cr:arc(width - radius, radius, radius, -math.pi/2, 0)
+  cr:arc(width - radius, height - radius, radius, 0, math.pi/2)
+  cr:arc(radius, height - radius, radius, math.pi/2, math.pi)
+  cr:arc(radius, radius, radius, math.pi, 3*math.pi/2)
+  cr:close_path()
+  
+  -- Fill with semi-transparent background
+  cr:set_source_rgba(0.2, 0.2, 0.2, 0.9) -- Semi-transparent dark background
+  cr:fill_preserve()
+  
   -- Draw border
   cr:set_source_rgb(0.3, 0.6, 1) -- Blue border
   cr:set_line_width(2)
-  cr:rectangle(1, 1, width - 2, height - 2)
+
   cr:stroke()
+  cr:restore()
+
+  -- Add a subtle gradient overlay
+  local pattern = cairo.LinearGradient.create(0, 0, 0, height)
+  pattern:add_color_stop_rgba(0, 1, 1, 1, 0.05) -- Top: slightly lighter
+  pattern:add_color_stop_rgba(1, 0, 0, 0, 0.05) -- Bottom: slightly darker
+  
+  cr:save()
+  cr:rectangle(0, 0, width, height)
+  cr:set_source(pattern)
+  cr:fill()
+  cr:restore()
 
   -- Draw text
   cr:set_source_rgb(1, 1, 1)
@@ -1416,13 +1434,28 @@ function draw_notification(width, height, cairo_surface_pointer, text)
   local x = (width - text_extents.width) / 2
   local y = (height + text_extents.height) / 2
   
-  print("[DEBUG] Drawing text: '" .. text_to_display .. "' at position " .. x .. "," .. y)
+  -- Add text shadow for better readability
+  cr:save()
+  cr:set_source_rgba(0, 0, 0, 0.5)
+  cr:move_to(x + 1, y + 1)
+  cr:show_text(text_to_display)
+  cr:restore()
+  
+  -- Draw the main text
+  cr:set_source_rgb(1, 1, 1)
   cr:move_to(x, y)
   cr:show_text(text_to_display)
 
-  -- Clean up
-  cr:surface():finish()
-  print("[DEBUG] Notification drawing completed successfully")
+  -- Add a small indicator in the bottom right
+  local time_text = os.date("%H:%M")
+  cr:set_font_size(10)
+  local time_extents = cr:text_extents(time_text)
+  cr:set_source_rgba(0.8, 0.8, 0.8, 0.7)
+  cr:move_to(width - time_extents.width - 10, height - 10)
+  cr:show_text(time_text)
+
+  -- Log completion
+  logger.debug("Notification drawing completed successfully")
   return true
 end
 
@@ -1430,6 +1463,13 @@ return {
   draw_surface = draw_surface,
   draw_notification = draw_notification,
 }
+
+================
+File: build_test.sh
+================
+#!/bin/bash
+make
+echo "Build result: $?"
 
 ================
 File: CHANGELOG.md
@@ -6738,7 +6778,9 @@ File: luaa.c
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
+// Cairo header will be included when needed
 
 #include "util.h"
 
@@ -6841,6 +6883,33 @@ static int l_log(lua_State *L) {
   return 0;
 }
 
+// Simplified widget-related functions
+static int l_create_notification(lua_State *L) {
+  const char *text = luaL_checkstring(L, 1);
+  int timeout = luaL_optinteger(L, 2, 3);  // Default timeout: 3 seconds
+  char msg[256];
+  
+  // Log the notification creation
+  lua_getglobal(L, "logger");
+  if (!lua_isnil(L, -1)) {
+    snprintf(msg, sizeof(msg), "Creating notification with text: '%s'", text);
+    lua_getfield(L, -1, "info");
+    lua_pushstring(L, msg);
+    lua_pcall(L, 1, 0, 0);
+    lua_pop(L, 1);  // Logger table
+  } else {
+    fprintf(stderr, "Creating notification with text: '%s'\n", text);
+    lua_pop(L, 1);  // nil
+  }
+  
+  // In a real implementation, we'd create a notification widget here
+  // For now, just print to the console
+  fprintf(stderr, "NOTIFICATION: %s (timeout: %d seconds)\n", text, timeout);
+  
+  // Return success
+  return 0;
+}
+
 static int l_draw_widget(lua_State *L) {
   int width = luaL_checkinteger(L, 1);
   int height = luaL_checkinteger(L, 2);
@@ -6867,7 +6936,7 @@ static int l_draw_widget(lua_State *L) {
     lua_pop(L, 1);  // nil
   }
   
-  // Call the Lua function to draw the widget
+  // For now, just call the Lua function to draw the widget
   // Push the function name to get the actual function
   lua_getglobal(L, draw_function);
   
@@ -6886,9 +6955,6 @@ static int l_draw_widget(lua_State *L) {
     lua_pop(L, 1);  // nil function
     return 1;
   }
-  
-  // Create a temporary Cairo surface for drawing
-  // In a real implementation, this would be integrated with your Wayland compositor
   
   // Pass parameters to the Lua function
   lua_pushinteger(L, width);
@@ -6930,11 +6996,19 @@ static int l_draw_widget(lua_State *L) {
   return 0;
 }
 
+// Dummy function for now
+static int l_destroy_widget(lua_State *L) {
+  fprintf(stderr, "destroy_widget called\n");
+  return 0;
+}
+
 static const struct luaL_Reg somelib[] = {{"hello_world", l_hello_world},
                                           {"spawn", l_spawn},
                                           {"restart", l_restart},
                                           {"quit", l_quit},
+                                          {"create_notification", l_create_notification},
                                           {"draw_widget", l_draw_widget},
+                                          {"destroy_widget", l_destroy_widget},
                                           {"log", l_log},
                                           {NULL, NULL}};
 
@@ -7078,6 +7152,8 @@ static int l_register_key_binding(lua_State *L) {
 LuaKey *lua_keys = NULL;
 size_t num_lua_keys = 0;
 
+// Forward declarations will be added when needed
+
 void init_lua(void) {
   const char *lua_path = "./lua/?.lua;./lua/?/init.lua;";
   if (L != NULL) {
@@ -7108,6 +7184,8 @@ void init_lua(void) {
   lua_setglobal(L, "register_key_binding");
   lua_pushcfunction(L, l_get_keysym);
   lua_setglobal(L, "get_keysym_native");
+  
+  // Widget initialization happens on demand
 
   fprintf(stderr, "Loading rc.lua...\n");
   if (luaL_dofile(L, "rc.lua") != LUA_OK) {
@@ -7230,9 +7308,9 @@ LUA_LIBS = -llua5.4
 LUA_INCLUDES = -I/usr/include/lua5.4
 
 # CFLAGS / LDFLAGS
-PKGS      = wlroots-0.18 wayland-server xkbcommon libinput $(XLIBS)
+PKGS      = wlroots-0.18 wayland-server xkbcommon libinput cairo $(XLIBS)
 DWLCFLAGS = `$(PKG_CONFIG) --cflags $(PKGS)` $(DWLCPPFLAGS) $(DWLDEVCFLAGS) $(CFLAGS) $(LUA_INCLUDES) -I.
-LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` -lm $(LIBS) $(LUA_LIBS)
+LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` -lm $(LIBS) $(LUA_LIBS) -lcairo
 
 all: lgi-check dwl
 
@@ -7319,6 +7397,7 @@ File: rc.lua
 local awful = require("awful")
 local widgets = require("widgets")
 local logger = require("logger")
+local drawable = require("basic_drawable")
 
 -- Initialize logger
 logger.init()
