@@ -9,7 +9,7 @@ local LEVELS = {
   debug = 1,
   info = 2,
   warn = 3,
-  error = 4
+  error = 4,
 }
 
 -- Current log level
@@ -26,16 +26,16 @@ function logger.init()
     print("Failed to create logs directory")
     return false
   end
-  
+
   -- Open the log file for appending
   local file, err = io.open(LOG_FILE, "a")
   if not file then
     print("Failed to open log file: " .. (err or "unknown error"))
     return false
   end
-  
+
   log_file = file
-  
+
   -- Add a separator for new log session
   logger.info("===== SomeWM Log Session Started =====")
   return true
@@ -48,15 +48,15 @@ local function log(level, message)
       return
     end
   end
-  
+
   if LEVELS[level] >= current_level then
     local timestamp = os.date("%Y-%m-%d %H:%M:%S")
     local log_message = string.format("[%s] [%s] %s\n", timestamp, level:upper(), message)
-    
+
     -- Write to file
     log_file:write(log_message)
     log_file:flush()
-    
+
     -- Also print to console for immediate feedback
     print(log_message)
   end

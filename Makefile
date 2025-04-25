@@ -97,3 +97,5 @@ uninstall:
 .SUFFIXES: .c .o
 .c.o:
 	$(CC) $(CPPFLAGS) $(DWLCFLAGS) -o $@ -c $<
+
+.PHONY: all lgi-check dwl clean dist install uninstall
