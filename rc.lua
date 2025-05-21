@@ -44,7 +44,7 @@ awful.key({
   description = "raise volume",
   group = "media",
   on_press = function()
-    Some.spawn("pamixer -i 5")
+    Some.spawn("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+")
   end,
 })
 
@@ -54,7 +54,7 @@ awful.key({
   description = "lower volume",
   group = "media",
   on_press = function()
-    Some.spawn("pamixer -d 5")
+    Some.spawn("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-")
   end,
 })
 
@@ -64,7 +64,7 @@ awful.key({
   description = "toggle mute",
   group = "media",
   on_press = function()
-    Some.spawn("pamixer -t")
+    Some.spawn("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle")
   end,
 })
 
@@ -124,7 +124,7 @@ awful.key({
   group = "widgets",
   on_press = function()
     logger.info("'n' key pressed, testing notification system")
-    
+
     -- Use the system's notification directly
     local wayland_surface = require("wayland_surface")
     wayland_surface.create_widget_surface(300, 100, 50, 50, "Test Notification via system notification")
@@ -139,7 +139,7 @@ awful.key({
   group = "widgets",
   on_press = function()
     logger.info("'d' key pressed, testing menu-based notification")
-    
+
     -- Use the direct message display function
     local wayland_surface = require("wayland_surface")
     wayland_surface.display_message("Test menu-based notification")
