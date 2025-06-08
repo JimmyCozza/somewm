@@ -84,3 +84,26 @@
 [2025-03-13 19:34:07] [INFO] Widget will be visible for 5 seconds
 [2025-03-13 19:34:07] [DEBUG] (In a real implementation, the widget would be hidden after 5 seconds)
 [2025-03-13 19:34:07] [INFO] Widget creation successful
+[2025-06-08 21:01:12] [INFO] ===== SomeWM Log Session Started =====
+[2025-06-08 21:01:12] [INFO] SomeWM starting up
+[2025-06-08 21:02:36] [INFO] 'c' key pressed, testing client API
+[2025-06-08 21:02:36] [INFO] Testing client API...
+[2025-06-08 21:02:36] [INFO] Number of clients: 2
+[2025-06-08 21:02:36] [INFO] Focused client: [2/2] vi . ~/t/somewm (org.wezfurlong.wezterm) - 2256x1504+0+0, tags:1, floating:false, fullscreen:false
+[2025-06-08 21:02:36] [INFO] Client 1: [2/2] vi . ~/t/somewm (org.wezfurlong.wezterm) - 2256x1504+0+0, tags:1, floating:false, fullscreen:false
+[2025-06-08 21:02:36] [INFO] Client 2: Sign in - Google Accounts — Mozilla Firefox (firefox) - 2256x1504+0+0, tags:2, floating:false, fullscreen:false
+[2025-06-08 21:02:36] [INFO] All client titles: [2/2] vi . ~/t/somewm, Sign in - Google Accounts — Mozilla Firefox
+[2025-06-08 21:02:36] [INFO] wezterm not found
+[2025-06-08 21:48:57] [INFO] Toggled floating for: [1/2] vi rc.lua  ~/t/somewm
+[2025-06-08 21:48:57] [INFO] Toggled floating for: Building supercomputers for autocrats probably isn't good for democracy | Hacker News — Mozilla Firefox
+[2025-06-08 22:19:11] [INFO] ===== SomeWM Log Session Started =====
+[2025-06-08 22:19:11] [INFO] SomeWM starting up
+[2025-06-08 22:19:35] [INFO] Closed client: ~
+[2025-06-08 22:19:38] [INFO] Closed client: ~
+[2025-06-08 22:30:54] [INFO] Toggled floating for: ~/t/somewm
+[2025-06-08 22:46:57] [INFO] ===== SomeWM Log Session Started =====
+[2025-06-08 22:46:57] [INFO] SomeWM starting up
+[2025-06-08 22:47:20] [INFO] Toggled floating for: ~
+[2025-06-08 22:47:29] [INFO] Closed client: ~
+[2025-06-08 22:48:18] [INFO] Toggled floating for: ~
+[2025-06-08 22:48:18] [INFO] Toggled floating for: Zig Devlog: Self-Hosted x86 Back End Is Now Default in Debug Mode | Hacker News — Mozilla Firefox

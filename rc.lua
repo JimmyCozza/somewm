@@ -78,6 +78,46 @@ awful.key({
   end,
 })
 
+awful.key({
+  modifiers = { modkey, shift },
+  key = "S",
+  description = "suspend system",
+  group = "power",
+  on_press = function()
+    Some.spawn("systemctl suspend")
+  end,
+})
+
+awful.key({
+  modifiers = { modkey, shift },
+  key = "H",
+  description = "hibernate system",
+  group = "power",
+  on_press = function()
+    Some.spawn("systemctl hibernate")
+  end,
+})
+
+awful.key({
+  modifiers = { modkey, shift },
+  key = "R",
+  description = "reboot system",
+  group = "power",
+  on_press = function()
+    Some.spawn("systemctl reboot")
+  end,
+})
+
+awful.key({
+  modifiers = { modkey, shift },
+  key = "Q",
+  description = "quit SomeWM",
+  group = "power",
+  on_press = function()
+    Some.quit()
+  end,
+})
+
 -- Add a keybinding to show a widget
 awful.key({
   modifiers = { modkey },
@@ -145,5 +185,146 @@ awful.key({
     wayland_surface.display_message("Test menu-based notification")
   end,
 })
+
+-- Add a keybinding to test the client API
+awful.key({
+  modifiers = { modkey },
+  key = "c",
+  description = "test client API",
+  group = "clients",
+  on_press = function()
+    logger.info("'c' key pressed, testing client API")
+    dofile("test_client_api.lua")
+  end,
+})
+
+-- Add a keybinding to test client manipulation
+awful.key({
+  modifiers = { modkey, shift },
+  key = "c",
+  description = "test client manipulation",
+  group = "clients",
+  on_press = function()
+    logger.info("'Shift+c' key pressed, testing client manipulation")
+    dofile("test_client_manipulation.lua")
+  end,
+})
+
+-- Add a keybinding to test the event system
+awful.key({
+  modifiers = { modkey },
+  key = "e",
+  description = "setup event system tests",
+  group = "clients",
+  on_press = function()
+    logger.info("'e' key pressed, setting up event system tests")
+    dofile("test_events.lua")
+  end,
+})
+
+-- Add a keybinding for practical event examples
+awful.key({
+  modifiers = { modkey, shift },
+  key = "e",
+  description = "enable practical event-based window management",
+  group = "clients",
+  on_press = function()
+    logger.info("'Shift+e' key pressed, enabling practical event-based window management")
+    dofile("practical_event_example.lua")
+  end,
+})
+
+-- Phase 4: Monitor & Tag Management Tests
+awful.key({
+  modifiers = { modkey },
+  key = "m",
+  description = "test monitor API",
+  group = "clients",
+  on_press = function()
+    logger.info("'m' key pressed, testing monitor API")
+    dofile("test_monitor_api.lua")
+  end,
+})
+
+awful.key({
+  modifiers = { modkey, shift },
+  key = "m",
+  description = "test monitor management",
+  group = "clients",
+  on_press = function()
+    logger.info("'Shift+m' key pressed, testing monitor management")
+    dofile("test_monitor_manipulation.lua")
+  end,
+})
+
+awful.key({
+  modifiers = { modkey },
+  key = "t",
+  description = "test tag API",
+  group = "clients",
+  on_press = function()
+    logger.info("'t' key pressed, testing tag API")
+    dofile("test_tag_api.lua")
+  end,
+})
+
+awful.key({
+  modifiers = { modkey, shift },
+  key = "t",
+  description = "test tag management",
+  group = "clients",
+  on_press = function()
+    logger.info("'Shift+t' key pressed, testing tag management")
+    dofile("test_tag_manipulation.lua")
+  end,
+})
+
+-- Add some practical client manipulation keybindings
+awful.key({
+  modifiers = { modkey },
+  key = "f",
+  description = "toggle focused client fullscreen",
+  group = "clients",
+  on_press = function()
+    local client = require("client")
+    local focused = client.get_focused()
+    if focused then
+      client.toggle_fullscreen(focused)
+      logger.info("Toggled fullscreen for: " .. (client.get_title(focused) or "Untitled"))
+    end
+  end,
+})
+
+awful.key({
+  modifiers = { modkey, shift },
+  key = "space",
+  description = "toggle focused client floating",
+  group = "clients",
+  on_press = function()
+    local client = require("client")
+    local focused = client.get_focused()
+    if focused then
+      client.toggle_floating(focused)
+      logger.info("Toggled floating for: " .. (client.get_title(focused) or "Untitled"))
+    end
+  end,
+})
+
+awful.key({
+  modifiers = { modkey },
+  key = "q",
+  description = "close focused client",
+  group = "clients",
+  on_press = function()
+    local client = require("client")
+    local focused = client.get_focused()
+    if focused then
+      local title = client.get_title(focused) or "Untitled"
+      client.close(focused)
+      logger.info("Closed client: " .. title)
+    end
+  end,
+})
+
 
 Some.hello_world()

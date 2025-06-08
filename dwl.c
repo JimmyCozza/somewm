@@ -446,6 +446,339 @@ static xcb_atom_t netatom[NetLast];
 #include "client.h"
 
 /* function implementations */
+
+/* Lua API wrapper functions - these allow luaa.c to access client data
+ * without circular dependencies */
+int lua_get_client_count(void) {
+  int count = 0;
+  Client *c;
+  wl_list_for_each(c, &clients, link) {
+    count++;
+  }
+  return count;
+}
+
+void *lua_get_focused_client(void) {
+  return selmon ? focustop(selmon) : NULL;
+}
+
+const char *lua_get_client_title(void *client) {
+  Client *c = (Client *)client;
+  return c ? client_get_title(c) : NULL;
+}
+
+const char *lua_get_client_appid(void *client) {
+  Client *c = (Client *)client;
+  return c ? client_get_appid(c) : NULL;
+}
+
+int lua_get_client_pid(void *client) {
+  Client *c = (Client *)client;
+  int pid;
+  
+  if (!c) return -1;
+  
+#ifdef XWAYLAND
+  if (client_is_x11(c))
+    return -1; // X11 clients don't have reliable PID access
+#endif
+  
+  wl_client_get_credentials(c->surface.xdg->client->client, &pid, NULL, NULL);
+  return pid;
+}
+
+void lua_kill_client(void *client) {
+  Client *c = (Client *)client;
+  int pid;
+  
+  if (!c) return;
+  
+  pid = lua_get_client_pid(c);
+  if (pid > 0) {
+    kill(pid, SIGKILL);
+  }
+}
+
+void lua_get_client_geometry(void *client, int *x, int *y, int *w, int *h) {
+  Client *c = (Client *)client;
+  if (!c) return;
+  if (x) *x = c->geom.x;
+  if (y) *y = c->geom.y;
+  if (w) *w = c->geom.width;
+  if (h) *h = c->geom.height;
+}
+
+uint32_t lua_get_client_tags(void *client) {
+  Client *c = (Client *)client;
+  return c ? c->tags : 0;
+}
+
+int lua_get_client_floating(void *client) {
+  Client *c = (Client *)client;
+  return c ? c->isfloating : 0;
+}
+
+int lua_get_client_fullscreen(void *client) {
+  Client *c = (Client *)client;
+  return c ? c->isfullscreen : 0;
+}
+
+void *lua_get_client_by_index(int index) {
+  int i = 0;
+  Client *c;
+  wl_list_for_each(c, &clients, link) {
+    if (i == index) return c;
+    i++;
+  }
+  return NULL;
+}
+
+/* Client manipulation wrapper functions for Lua API */
+void lua_client_focus(void *client) {
+  Client *c = (Client *)client;
+  if (c) {
+    focusclient(c, 1);
+  }
+}
+
+void lua_client_close(void *client) {
+  Client *c = (Client *)client;
+  if (c) {
+    client_send_close(c);
+  }
+}
+
+void lua_client_set_floating(void *client, int floating) {
+  Client *c = (Client *)client;
+  if (c) {
+    setfloating(c, floating);
+  }
+}
+
+void lua_client_set_fullscreen(void *client, int fullscreen) {
+  Client *c = (Client *)client;
+  if (c) {
+    setfullscreen(c, fullscreen);
+  }
+}
+
+void lua_client_set_geometry(void *client, int x, int y, int w, int h) {
+  Client *c = (Client *)client;
+  if (c) {
+    struct wlr_box geo = {x, y, w, h};
+    resize(c, geo, 0);
+  }
+}
+
+void lua_client_set_tags(void *client, uint32_t tags) {
+  Client *c = (Client *)client;
+  if (c && tags > 0) {
+    c->tags = tags;
+    focusclient(focustop(selmon), 1);
+    arrange(selmon);
+  }
+}
+
+/* Monitor wrapper functions for Lua API */
+int lua_get_monitor_count() {
+  int count = 0;
+  Monitor *m;
+  wl_list_for_each(m, &mons, link) {
+    count++;
+  }
+  return count;
+}
+
+void* lua_get_focused_monitor() {
+  return (void*)selmon;
+}
+
+void* lua_get_monitor_by_index(int index) {
+  int i = 0;
+  Monitor *m;
+  wl_list_for_each(m, &mons, link) {
+    if (i == index) return (void*)m;
+    i++;
+  }
+  return NULL;
+}
+
+const char* lua_get_monitor_name(void *monitor) {
+  Monitor *m = (Monitor*)monitor;
+  if (m && m->wlr_output) {
+    return m->wlr_output->name;
+  }
+  return NULL;
+}
+
+void lua_get_monitor_geometry(void *monitor, int *x, int *y, int *width, int *height) {
+  Monitor *m = (Monitor*)monitor;
+  if (m) {
+    *x = m->m.x;
+    *y = m->m.y;
+    *width = m->m.width;
+    *height = m->m.height;
+  }
+}
+
+void lua_get_monitor_workarea(void *monitor, int *x, int *y, int *width, int *height) {
+  Monitor *m = (Monitor*)monitor;
+  if (m) {
+    *x = m->w.x;
+    *y = m->w.y;
+    *width = m->w.width;
+    *height = m->w.height;
+  }
+}
+
+const char* lua_get_monitor_layout_symbol(void *monitor) {
+  Monitor *m = (Monitor*)monitor;
+  if (m) {
+    return m->ltsymbol;
+  }
+  return NULL;
+}
+
+float lua_get_monitor_master_factor(void *monitor) {
+  Monitor *m = (Monitor*)monitor;
+  if (m) {
+    return m->mfact;
+  }
+  return 0.0f;
+}
+
+int lua_get_monitor_master_count(void *monitor) {
+  Monitor *m = (Monitor*)monitor;
+  if (m) {
+    return m->nmaster;
+  }
+  return 0;
+}
+
+uint32_t lua_get_monitor_tags(void *monitor) {
+  Monitor *m = (Monitor*)monitor;
+  if (m) {
+    return m->tagset[m->seltags];
+  }
+  return 0;
+}
+
+int lua_get_monitor_enabled(void *monitor) {
+  Monitor *m = (Monitor*)monitor;
+  if (m && m->wlr_output) {
+    return m->wlr_output->enabled ? 1 : 0;
+  }
+  return 0;
+}
+
+void lua_focus_monitor(void *monitor) {
+  Monitor *m = (Monitor*)monitor;
+  if (m && m != selmon) {
+    selmon = m;
+    focusclient(focustop(m), 1);
+  }
+}
+
+void lua_set_monitor_tags(void *monitor, uint32_t tags) {
+  Monitor *m = (Monitor*)monitor;
+  if (m && tags > 0) {
+    m->tagset[m->seltags] = tags;
+    focusclient(focustop(m), 1);
+    arrange(m);
+  }
+}
+
+void lua_set_monitor_master_factor(void *monitor, float factor) {
+  Monitor *m = (Monitor*)monitor;
+  if (m && factor > 0.0f && factor < 1.0f) {
+    m->mfact = factor;
+    arrange(m);
+  }
+}
+
+void lua_set_monitor_master_count(void *monitor, int count) {
+  Monitor *m = (Monitor*)monitor;
+  if (m && count >= 0) {
+    m->nmaster = count;
+    arrange(m);
+  }
+}
+
+/* Tag wrapper functions for Lua API */
+int lua_get_tag_count() {
+  return TAGCOUNT;
+}
+
+uint32_t lua_get_current_tags() {
+  if (selmon) {
+    return selmon->tagset[selmon->seltags];
+  }
+  return 0;
+}
+
+uint32_t lua_get_monitor_current_tags(void *monitor) {
+  Monitor *m = (Monitor*)monitor;
+  if (m) {
+    return m->tagset[m->seltags];
+  }
+  return 0;
+}
+
+void lua_set_current_tags(uint32_t tags) {
+  if (selmon && tags > 0) {
+    selmon->tagset[selmon->seltags] = tags;
+    focusclient(focustop(selmon), 1);
+    arrange(selmon);
+  }
+}
+
+void lua_toggle_tag_view(uint32_t tags) {
+  if (selmon && tags > 0) {
+    uint32_t newtagset = selmon->tagset[selmon->seltags] ^ tags;
+    if (newtagset) {
+      selmon->tagset[selmon->seltags] = newtagset;
+      focusclient(focustop(selmon), 1);
+      arrange(selmon);
+    }
+  }
+}
+
+uint32_t lua_get_occupied_tags() {
+  uint32_t occupied = 0;
+  Client *c;
+  wl_list_for_each(c, &clients, link) {
+    if (VISIBLEON(c, selmon)) {
+      occupied |= c->tags;
+    }
+  }
+  return occupied;
+}
+
+uint32_t lua_get_monitor_occupied_tags(void *monitor) {
+  Monitor *m = (Monitor*)monitor;
+  uint32_t occupied = 0;
+  Client *c;
+  if (m) {
+    wl_list_for_each(c, &clients, link) {
+      if (VISIBLEON(c, m)) {
+        occupied |= c->tags;
+      }
+    }
+  }
+  return occupied;
+}
+
+uint32_t lua_get_urgent_tags() {
+  uint32_t urgent = 0;
+  Client *c;
+  wl_list_for_each(c, &clients, link) {
+    if (c->isurgent && VISIBLEON(c, selmon)) {
+      urgent |= c->tags;
+    }
+  }
+  return urgent;
+}
+
 void applybounds(Client *c, struct wlr_box *bbox) {
   /* set minimum possible */
   c->geom.width = MAX(1 + 2 * (int)c->bw, c->geom.width);
@@ -1361,6 +1694,11 @@ void focusclient(Client *c, int lift) {
 
       client_activate_surface(old, 0);
     }
+    
+    /* Fire unfocus event for old client */
+    if (old_c && !client_is_unmanaged(old_c)) {
+      lua_event_emit(LUA_EVENT_CLIENT_UNFOCUS, old_c, NULL);
+    }
   }
   printstatus();
 
@@ -1378,6 +1716,11 @@ void focusclient(Client *c, int lift) {
 
   /* Activate the new client */
   client_activate_surface(client_surface(c), 1);
+  
+  /* Fire focus event for new client */
+  if (!client_is_unmanaged(c)) {
+    lua_event_emit(LUA_EVENT_CLIENT_FOCUS, c, NULL);
+  }
 }
 
 void focusmon(const Arg *arg) {
@@ -1775,6 +2118,9 @@ unset_fullscreen:
         (w->tags & c->tags))
       setfullscreen(w, 0);
   }
+  
+  /* Fire Lua event for client map */
+  lua_event_emit(LUA_EVENT_CLIENT_MAP, c, NULL);
 }
 
 void maximizenotify(struct wl_listener *listener, void *data) {
@@ -2317,6 +2663,9 @@ void setfloating(Client *c, int floating) {
                                               : LyrTile]);
   arrange(c->mon);
   printstatus();
+  
+  /* Fire floating state change event */
+  lua_event_emit(LUA_EVENT_CLIENT_FLOATING, c, &floating);
 }
 
 void setfullscreen(Client *c, int fullscreen) {
@@ -2339,6 +2688,9 @@ void setfullscreen(Client *c, int fullscreen) {
   }
   arrange(c->mon);
   printstatus();
+  
+  /* Fire fullscreen state change event */
+  lua_event_emit(LUA_EVENT_CLIENT_FULLSCREEN, c, &fullscreen);
 }
 
 void setgamma(struct wl_listener *listener, void *data) {
@@ -2781,6 +3133,9 @@ void unmapnotify(struct wl_listener *listener, void *data) {
     wl_list_remove(&c->flink);
   }
 
+  /* Fire Lua event for client unmap */
+  lua_event_emit(LUA_EVENT_CLIENT_UNMAP, c, NULL);
+  
   wlr_scene_node_destroy(&c->scene->node);
   printstatus();
   motionnotify(0, NULL, 0, 0, 0, 0);
@@ -2897,6 +3252,9 @@ void updatetitle(struct wl_listener *listener, void *data) {
   Client *c = wl_container_of(listener, c, set_title);
   if (c == focustop(c->mon))
     printstatus();
+    
+  /* Fire title change event */
+  lua_event_emit(LUA_EVENT_CLIENT_TITLE_CHANGE, c, NULL);
 }
 
 void urgent(struct wl_listener *listener, void *data) {
