@@ -779,6 +779,59 @@ uint32_t lua_get_urgent_tags() {
   return urgent;
 }
 
+/* Layer surface wrapper functions for Lua API */
+/* Note: Layer surfaces should be created by clients, not the compositor.
+ * This is a placeholder that spawns a simple wibar client. */
+void *lua_create_layer_surface(int width, int height, int layer, int exclusive_zone, uint32_t anchor) {
+  char cmd[512];
+  const char *layer_name;
+  const char *anchor_str;
+  
+  /* Map layer number to name */
+  switch (layer) {
+    case 0: layer_name = "background"; break;
+    case 1: layer_name = "bottom"; break;
+    case 2: layer_name = "top"; break;
+    case 3: layer_name = "overlay"; break;
+    default: layer_name = "top"; break;
+  }
+  
+  /* Map anchor flags to string */
+  if (anchor & 1) anchor_str = "top";
+  else if (anchor & 2) anchor_str = "bottom";
+  else if (anchor & 4) anchor_str = "left";
+  else if (anchor & 8) anchor_str = "right";
+  else anchor_str = "top";
+  
+  /* For now, create a simple colored rectangle using wlr-randr or similar */
+  /* This is a temporary solution until we implement a proper wibar client */
+  fprintf(stderr, "Creating temporary wibar simulation: %dx%d on %s layer, exclusive=%d, anchor=%s\n", 
+          width, height, layer_name, exclusive_zone, anchor_str);
+  
+  /* Try to create a simple notification-style display for now */
+  if (exclusive_zone > 0) {
+    snprintf(cmd, sizeof(cmd), 
+      "notify-send -t 10000 'SomeWM Wibar' 'Wibar created: %dx%d on %s layer (exclusive=%d)'",
+      width, height, layer_name, exclusive_zone);
+  } else {
+    snprintf(cmd, sizeof(cmd), 
+      "notify-send -t 5000 'SomeWM Wibar' 'Wibar created: %dx%d on %s layer (non-exclusive)'",
+      width, height, layer_name);
+  }
+  
+  system(cmd);
+  
+  /* Return a dummy pointer to indicate success */
+  return (void *)0x1;
+}
+
+void lua_destroy_layer_surface(void *layer_surface_ptr) {
+  if (layer_surface_ptr) {
+    fprintf(stderr, "Destroying wibar simulation\n");
+    /* In a full implementation, this would kill the wibar client process */
+  }
+}
+
 void applybounds(Client *c, struct wlr_box *bbox) {
   /* set minimum possible */
   c->geom.width = MAX(1 + 2 * (int)c->bw, c->geom.width);

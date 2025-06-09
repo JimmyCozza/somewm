@@ -324,4 +324,170 @@ function widgets.clear_all()
   widgets.active_widgets = {}
 end
 
+-- Wibar (window bar) widget class
+function widgets.create_wibar(config)
+  config = config or {}
+  
+  local wibar = widgets.create_widget_base()
+  
+  -- Set wibar properties with defaults
+  wibar.width = config.width or 1920  -- Full screen width by default
+  wibar.height = config.height or 30
+  wibar.x = config.x or 0
+  wibar.y = config.y or 0
+  wibar.layer = config.layer or "top"
+  wibar.anchor = config.anchor or "top"
+  wibar.exclusive = config.exclusive ~= false  -- Default to true
+  wibar:set_private("surface_id", nil)
+  wibar:set_private("background_color", config.background_color or {0.2, 0.2, 0.2, 0.9})
+  wibar:set_private("border_color", config.border_color or {0.3, 0.6, 1.0, 1.0})
+  wibar:set_private("border_width", config.border_width or 1)
+  
+  -- Wibar-specific properties
+  wibar:add_property("layer", {
+    getter = function(self)
+      return self:get_private().layer or "top"
+    end,
+    setter = function(self, value)
+      self:set_private("layer", value)
+      self:emit_signal("property::layer", value)
+      if self.visible then
+        self:_redraw()
+      end
+    end
+  })
+  
+  wibar:add_property("anchor", {
+    getter = function(self)
+      return self:get_private().anchor or "top"
+    end,
+    setter = function(self, value)
+      self:set_private("anchor", value)
+      self:emit_signal("property::anchor", value)
+      if self.visible then
+        self:_redraw()
+      end
+    end
+  })
+  
+  wibar:add_property("exclusive", {
+    getter = function(self)
+      return self:get_private().exclusive ~= false
+    end,
+    setter = function(self, value)
+      self:set_private("exclusive", value)
+      self:emit_signal("property::exclusive", value)
+      if self.visible then
+        self:_redraw()
+      end
+    end
+  })
+  
+  -- Override redraw for wibar-specific rendering
+  function wibar:_redraw()
+    if not self.visible then
+      return
+    end
+    
+    -- Destroy existing surface if any
+    if self:get_private().surface_id then
+      Some.destroy_layer_surface(self:get_private().surface_id)
+      self:set_private("surface_id", nil)
+    end
+    
+    base.logger.debug(string.format("Drawing wibar: %dx%d at (%d,%d), layer=%s, exclusive=%s", 
+      self.width, self.height, self.x, self.y, self.layer, tostring(self.exclusive)))
+    
+    -- Calculate exclusive zone (height if exclusive, 0 if not)
+    local exclusive_zone = self.exclusive and self.height or 0
+    
+    -- Create layer surface
+    local layer_surface = Some.create_layer_surface(
+      self.width, self.height, self.x, self.y, 
+      self.layer, exclusive_zone, self.anchor
+    )
+    
+    if layer_surface then
+      base.logger.info("Wibar layer surface created successfully")
+      self:set_private("surface_id", layer_surface)
+      
+      -- TODO: Add Cairo drawing here to render wibar content
+      self:_draw_content()
+    else
+      base.logger.warn("Could not create layer surface for wibar")
+    end
+  end
+  
+  function wibar:_draw_content()
+    -- This would be where we draw the actual wibar content using Cairo
+    -- For now, we'll just log that we would draw here
+    local bg_color = self:get_private().background_color
+    local border_color = self:get_private().border_color
+    local border_width = self:get_private().border_width
+    
+    base.logger.debug(string.format("Drawing wibar content with bg_color=[%.1f,%.1f,%.1f,%.1f], border_width=%d",
+      bg_color[1], bg_color[2], bg_color[3], bg_color[4], border_width))
+    
+    -- In a full implementation, this would:
+    -- 1. Get the Cairo context from the layer surface
+    -- 2. Draw background with bg_color
+    -- 3. Draw border with border_color and border_width
+    -- 4. Draw any child widgets/text content
+  end
+  
+  function wibar:hide()
+    if self:get_private().surface_id then
+      Some.destroy_layer_surface(self:get_private().surface_id)
+      self:set_private("surface_id", nil)
+    end
+    
+    -- Call parent hide
+    widgets.create_widget_base().hide(self)
+  end
+  
+  -- Add to active widgets registry
+  table.insert(widgets.active_widgets, wibar)
+  
+  base.logger.info(string.format("Created wibar: %dx%d at (%d,%d), layer=%s, exclusive=%s", 
+    wibar.width, wibar.height, wibar.x, wibar.y, wibar.layer, tostring(wibar.exclusive)))
+  
+  return wibar
+end
+
+-- Create a default top wibar
+function widgets.create_top_wibar(config)
+  config = config or {}
+  config.anchor = "top"
+  config.y = 0
+  config.exclusive = config.exclusive ~= false  -- Default to exclusive
+  return widgets.create_wibar(config)
+end
+
+-- Create a bottom wibar  
+function widgets.create_bottom_wibar(config)
+  config = config or {}
+  config.anchor = "bottom"
+  config.exclusive = config.exclusive ~= false  -- Default to exclusive
+  return widgets.create_wibar(config)
+end
+
+-- Test wibar functionality
+function widgets.test_wibar()
+  base.logger.info("== Wibar Test Function Called ==")
+  
+  -- Create a test top wibar
+  local wibar = widgets.create_top_wibar({
+    width = 1920,
+    height = 30,
+    background_color = {0.15, 0.15, 0.15, 0.95},
+    border_color = {0.4, 0.7, 1.0, 1.0},
+    border_width = 2
+  })
+  
+  wibar:show()
+  
+  base.logger.info("== Wibar Test Function Completed ==")
+  return wibar
+end
+
 return widgets

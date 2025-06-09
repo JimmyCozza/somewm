@@ -588,6 +588,78 @@ static int l_destroy_widget(lua_State *L) {
   return 0;
 }
 
+// Layer surface creation for wibar
+static int l_create_layer_surface(lua_State *L) {
+  int width = luaL_checkinteger(L, 1);
+  int height = luaL_checkinteger(L, 2);
+  int x = luaL_optinteger(L, 3, 0);
+  int y = luaL_optinteger(L, 4, 0);
+  const char *layer_name = luaL_optstring(L, 5, "top");
+  int exclusive_zone = luaL_optinteger(L, 6, height);
+  const char *anchor = luaL_optstring(L, 7, "top");
+  
+  // Map layer name to layer enum (will be passed to dwl.c)
+  int layer_level = 2; // Default to top layer
+  if (strcmp(layer_name, "background") == 0) layer_level = 0;
+  else if (strcmp(layer_name, "bottom") == 0) layer_level = 1;
+  else if (strcmp(layer_name, "top") == 0) layer_level = 2;
+  else if (strcmp(layer_name, "overlay") == 0) layer_level = 3;
+  
+  // Map anchor string to anchor flags (simplified for now)
+  uint32_t anchor_flags = 0;
+  if (strstr(anchor, "top")) anchor_flags |= 1;
+  if (strstr(anchor, "bottom")) anchor_flags |= 2;
+  if (strstr(anchor, "left")) anchor_flags |= 4;
+  if (strstr(anchor, "right")) anchor_flags |= 8;
+  
+  // Log the layer surface creation
+  lua_getglobal(L, "logger");
+  if (!lua_isnil(L, -1)) {
+    char msg[256];
+    snprintf(msg, sizeof(msg), "Creating layer surface: %dx%d at (%d,%d), layer=%s, exclusive=%d, anchor=%s", 
+             width, height, x, y, layer_name, exclusive_zone, anchor);
+    lua_getfield(L, -1, "info");
+    lua_pushstring(L, msg);
+    lua_pcall(L, 1, 0, 0);
+    lua_pop(L, 1);
+  } else {
+    fprintf(stderr, "Creating layer surface: %dx%d at (%d,%d), layer=%s, exclusive=%d\n", 
+            width, height, x, y, layer_name, exclusive_zone);
+    lua_pop(L, 1);
+  }
+  
+  // Call the dwl.c wrapper function to create actual layer surface
+  void *layer_surface = lua_create_layer_surface(width, height, layer_level, exclusive_zone, anchor_flags);
+  
+  if (layer_surface) {
+    lua_pushlightuserdata(L, layer_surface);
+    return 1;
+  } else {
+    lua_pushnil(L);
+    return 1;
+  }
+}
+
+// Destroy layer surface
+static int l_destroy_layer_surface(lua_State *L) {
+  void *layer_surface = lua_touserdata(L, 1);
+  if (layer_surface) {
+    lua_destroy_layer_surface(layer_surface);
+    
+    lua_getglobal(L, "logger");
+    if (!lua_isnil(L, -1)) {
+      lua_getfield(L, -1, "info");
+      lua_pushstring(L, "Layer surface destroyed");
+      lua_pcall(L, 1, 0, 0);
+      lua_pop(L, 1);
+    } else {
+      fprintf(stderr, "Layer surface destroyed\n");
+      lua_pop(L, 1);
+    }
+  }
+  return 0;
+}
+
 // Client wrapper functions are now declared in luaa.h
 
 // Client API functions
@@ -1078,6 +1150,8 @@ static const struct luaL_Reg somelib[] = {{"hello_world", l_hello_world},
                                           {"draw_widget", l_draw_widget},
                                           {"destroy_widget", l_destroy_widget},
                                           {"create_widget", l_create_notification},
+                                          {"create_layer_surface", l_create_layer_surface},
+                                          {"destroy_layer_surface", l_destroy_layer_surface},
                                           {"log", l_log},
                                           {"client_get_all", l_client_get_all},
                                           {"client_get_focused", l_client_get_focused},

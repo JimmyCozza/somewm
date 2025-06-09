@@ -158,6 +158,26 @@ somewm.key({
   end,
 })
 
+-- Wibar testing
+somewm.key({
+  modifiers = { config.modkey },
+  key = "b",
+  description = "create test wibar",
+  group = "widgets",
+  on_press = function()
+    somewm.base.logger.info("'b' key pressed, creating test wibar")
+    local ok, err = pcall(function()
+      somewm.ui.widgets.test_wibar()
+    end)
+    
+    if not ok then
+      somewm.base.logger.error("Error creating wibar: " .. tostring(err))
+    else
+      somewm.base.logger.info("Wibar test completed successfully")
+    end
+  end,
+})
+
 somewm.key({
   modifiers = { config.modkey },
   key = "n",

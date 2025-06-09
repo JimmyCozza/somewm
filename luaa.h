@@ -136,4 +136,8 @@ int lua_event_connect(LuaEventType event_type, int callback_ref);
 void lua_event_disconnect(LuaEventType event_type, int callback_ref);
 void lua_event_emit(LuaEventType event_type, void *client, void *data);
 
+// Layer surface wrapper functions (implemented in dwl.c)
+void *lua_create_layer_surface(int width, int height, int layer, int exclusive_zone, uint32_t anchor);
+void lua_destroy_layer_surface(void *layer_surface);
+
 #endif
