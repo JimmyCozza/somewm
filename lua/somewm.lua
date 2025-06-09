@@ -1,16 +1,16 @@
 -- SomeWM unified library entry point
--- Provides complete 3-layer architecture: foundation + core + ui
+-- Provides complete 3-layer architecture: base + core + ui
 -- Inspired by AwesomeWM's modular design
 
 local somewm = {}
 
 -- Import all three layers
-local foundation = require("foundation")
+local base = require("base")
 local core = require("core")
 local ui = require("ui")
 
 -- Export layers directly
-somewm.foundation = foundation
+somewm.base = base
 somewm.core = core
 somewm.ui = ui
 
@@ -20,21 +20,21 @@ somewm.spawn = function(cmd)
     return core.spawn(cmd)
   else
     -- Fallback to direct Some.spawn if core.spawn not available
-    foundation.logger.warn("Using fallback Some.spawn - core.spawn not available")
+    base.logger.warn("Using fallback Some.spawn - core.spawn not available")
     return Some.spawn(cmd)
   end
 end
 
 somewm.quit = function()
   -- Emit shutdown signals before quitting
-  foundation.signal.emit("shutdown")
+  base.signal.emit("shutdown")
   ui.clear_all()
   
   -- Call compositor quit
   if Some.quit then
     Some.quit()
   else
-    foundation.logger.error("Some.quit not available")
+    base.logger.error("Some.quit not available")
   end
 end
 
@@ -80,9 +80,9 @@ somewm.config = {
     if key == "stack_insert_mode" then
       general_options = general_options or {}
       general_options.stack_insert_mode = value
-      foundation.logger.info("Set stack_insert_mode to: " .. tostring(value))
+      base.logger.info("Set stack_insert_mode to: " .. tostring(value))
     else
-      foundation.logger.warn("Unknown config option: " .. tostring(key))
+      base.logger.warn("Unknown config option: " .. tostring(key))
     end
   end,
   
@@ -90,7 +90,7 @@ somewm.config = {
     if key == "stack_insert_mode" then
       return general_options and general_options.stack_insert_mode or "bottom"
     else
-      foundation.logger.warn("Unknown config option: " .. tostring(key))
+      base.logger.warn("Unknown config option: " .. tostring(key))
       return nil
     end
   end
@@ -105,7 +105,7 @@ end
 somewm.init = function(config)
   config = config or {}
   
-  foundation.logger.info("SomeWM library initializing...")
+  base.logger.info("SomeWM library initializing...")
   
   -- Set default config options
   if config.stack_insert_mode then
@@ -118,11 +118,11 @@ somewm.init = function(config)
   end
   
   -- Initialize logger if not already done
-  if foundation.logger.init then
-    foundation.logger.init()
+  if base.logger.init then
+    base.logger.init()
   end
   
-  foundation.logger.info("SomeWM library initialized")
+  base.logger.info("SomeWM library initialized")
   
   return somewm
 end
@@ -131,12 +131,12 @@ end
 somewm.compat = {
   -- Legacy widget functions
   show_widget = function(widget)
-    foundation.logger.warn("somewm.compat.show_widget is deprecated, use ui.widgets directly")
+    base.logger.warn("somewm.compat.show_widget is deprecated, use ui.widgets directly")
     return ui.widgets.show_widget(widget)
   end,
   
   hide_widget = function(widget)
-    foundation.logger.warn("somewm.compat.hide_widget is deprecated, use ui.widgets directly")
+    base.logger.warn("somewm.compat.hide_widget is deprecated, use ui.widgets directly")
     return ui.widgets.hide_widget(widget)
   end,
   
@@ -169,7 +169,7 @@ somewm.compat = {
 -- Statistics and debugging
 somewm.get_stats = function()
   return {
-    foundation = foundation.signal.get_stats(),
+    base = base.signal.get_stats(),
     core = core.client and core.client.get_stats and core.client.get_stats() or {},
     ui = ui.get_stats()
   }
@@ -181,16 +181,16 @@ somewm.debug = {
   end,
   
   list_signals = function()
-    foundation.logger.info("Global signals: " .. table.concat(foundation.signal.get_signal_names(), ", "))
+    base.logger.info("Global signals: " .. table.concat(base.signal.get_signal_names(), ", "))
   end,
   
   show_stats = function()
     local stats = somewm.get_stats()
-    foundation.logger.info("SomeWM Stats:")
-    foundation.logger.info("  Foundation signals: " .. (stats.foundation and #stats.foundation or 0))
-    foundation.logger.info("  UI widgets: " .. (stats.ui.widgets or 0))
-    foundation.logger.info("  UI keybindings: " .. (stats.ui.keybindings or 0))
-    foundation.logger.info("  UI automation rules: " .. (stats.ui.automation or 0))
+    base.logger.info("SomeWM Stats:")
+    base.logger.info("  Base signals: " .. (stats.base and #stats.base or 0))
+    base.logger.info("  UI widgets: " .. (stats.ui.widgets or 0))
+    base.logger.info("  UI keybindings: " .. (stats.ui.keybindings or 0))
+    base.logger.info("  UI automation rules: " .. (stats.ui.automation or 0))
   end
 }
 
@@ -207,7 +207,7 @@ somewm.version = {
 somewm._info = {
   name = "SomeWM",
   description = "A dwl-based Wayland compositor with Lua scripting",
-  architecture = "3-layer (foundation/core/ui)",
+  architecture = "3-layer (base/core/ui)",
   phase = 5
 }
 

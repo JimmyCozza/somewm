@@ -1,7 +1,7 @@
 -- Core tag/workspace management for SomeWM
--- Based on AwesomeWM's awful.tag with foundation.object integration
+-- Based on AwesomeWM's awful.tag with base.object integration
 
-local foundation = require("foundation")
+local base = require("base")
 
 local tag = {}
 
@@ -31,7 +31,7 @@ local function create_tag_object(tag_number)
     return nil
   end
   
-  local obj = foundation.object.new()
+  local obj = base.object.new()
   
   -- Store tag number privately
   obj:set_private("tag_number", tag_number)
@@ -85,7 +85,7 @@ local function create_tag_object(tag_number)
       local num = self:get_private().tag_number
       tag_config.layouts[num] = layout
       self:emit_signal("property::layout", layout)
-      foundation.signal.emit("tag::layout_changed", self, layout)
+      base.signal.emit("tag::layout_changed", self, layout)
     end
   })
   
@@ -166,12 +166,12 @@ end
 
 function tag.set_current(tags)
   Some.tag_set_current(tags)
-  foundation.signal.emit("tag::view_changed", tags)
+  base.signal.emit("tag::view_changed", tags)
 end
 
 function tag.toggle_view(tags)
   Some.tag_toggle_view(tags)
-  foundation.signal.emit("tag::view_toggled", tags)
+  base.signal.emit("tag::view_toggled", tags)
 end
 
 -- Tag state functions
@@ -196,7 +196,7 @@ function tag.set_current_for_monitor(monitor, tags)
   if monitor and monitor.get_private then
     local m = monitor:get_private().c_monitor
     Some.monitor_set_tags(m, tags)
-    foundation.signal.emit("tag::monitor_view_changed", monitor, tags)
+    base.signal.emit("tag::monitor_view_changed", monitor, tags)
   end
 end
 
@@ -274,7 +274,7 @@ function tag.set_names(names)
       tag_config.names[i] = name
     end
   end
-  foundation.signal.emit("tag::names_changed", names)
+  base.signal.emit("tag::names_changed", names)
 end
 
 function tag.get_name(tag_number)
@@ -286,7 +286,7 @@ function tag.set_name(tag_number, name)
   init_tags()
   if tag_number >= 1 and tag_number <= tag_config.count then
     tag_config.names[tag_number] = name
-    foundation.signal.emit("tag::name_changed", tag_number, name)
+    base.signal.emit("tag::name_changed", tag_number, name)
   end
 end
 
@@ -350,7 +350,7 @@ function tag.set_layout(tag_number, layout)
   init_tags()
   if tag_number >= 1 and tag_number <= tag_config.count then
     tag_config.layouts[tag_number] = layout
-    foundation.signal.emit("tag::layout_changed", tag_number, layout)
+    base.signal.emit("tag::layout_changed", tag_number, layout)
   end
 end
 
@@ -377,7 +377,7 @@ function tag.swap(tag1, tag2)
   tag_config.layouts[tag1] = layout2
   tag_config.layouts[tag2] = layout1
   
-  foundation.signal.emit("tag::swapped", tag1, tag2)
+  base.signal.emit("tag::swapped", tag1, tag2)
   return true
 end
 
@@ -398,11 +398,11 @@ end
 
 -- Signal handling
 function tag.connect_signal(signal_name, callback)
-  foundation.signal.connect("tag::" .. signal_name, callback)
+  base.signal.connect("tag::" .. signal_name, callback)
 end
 
 function tag.disconnect_signal(signal_name, callback)
-  foundation.signal.disconnect("tag::" .. signal_name, callback)
+  base.signal.disconnect("tag::" .. signal_name, callback)
 end
 
 -- Tag-specific signal handlers

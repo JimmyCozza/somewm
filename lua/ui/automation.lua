@@ -1,8 +1,8 @@
 -- UI automation layer for SomeWM
--- Smart window behaviors and automation using foundation.signal and core APIs
+-- Smart window behaviors and automation using base.signal and core APIs
 -- Inspired by AwesomeWM's ruled.client and smart focus systems
 
-local foundation = require("foundation")
+local base = require("base")
 local core = require("core")
 
 local automation = {}
@@ -24,7 +24,7 @@ automation.RULE_TYPES = {
 
 -- Create automation rule
 function automation.create_rule(config)
-  local rule = foundation.object.new()
+  local rule = base.object.new()
   
   -- Required properties
   rule:set_private("type", config.type or automation.RULE_TYPES.WINDOW_SPAWN)
@@ -116,7 +116,7 @@ function automation.create_rule(config)
     local actions = self:get_private().actions
     local callback = self:get_private().callback
     
-    foundation.logger.debug(string.format("Executing automation rule: %s", 
+    base.logger.debug(string.format("Executing automation rule: %s", 
       self:get_private().description))
     
     -- Execute predefined actions
@@ -128,7 +128,7 @@ function automation.create_rule(config)
     if callback and type(callback) == "function" then
       local success, err = pcall(callback, context, self)
       if not success then
-        foundation.logger.error(string.format("Error in automation callback: %s", err))
+        base.logger.error(string.format("Error in automation callback: %s", err))
       end
     end
     
@@ -172,10 +172,10 @@ function automation.create_rule(config)
       
     elseif action == "notify" and type(params) == "string" then
       -- This would integrate with ui.widgets
-      foundation.logger.info("Automation notification: " .. params)
+      base.logger.info("Automation notification: " .. params)
       
     else
-      foundation.logger.warn(string.format("Unknown automation action: %s", action))
+      base.logger.warn(string.format("Unknown automation action: %s", action))
     end
   end
   
@@ -200,7 +200,7 @@ function automation.create_rule(config)
   function rule:destroy()
     automation._unregister_rule(self)
     self:emit_signal("destroy")
-    foundation.object.destroy(self)
+    base.object.destroy(self)
   end
   
   return rule
@@ -268,7 +268,7 @@ function automation.add_rule(config)
   local rule = automation.create_rule(config)
   automation._register_rule(rule)
   
-  foundation.logger.info(string.format("Added automation rule: %s (type: %s, priority: %d)", 
+  base.logger.info(string.format("Added automation rule: %s (type: %s, priority: %d)", 
     rule:get_private().description, rule.type, rule.priority))
   
   return rule
@@ -400,18 +400,18 @@ function automation.init()
     end)
   end
   
-  foundation.logger.info("Automation system initialized")
+  base.logger.info("Automation system initialized")
 end
 
 -- Control automation system
 function automation.enable()
   automation.enabled = true
-  foundation.logger.info("Automation system enabled")
+  base.logger.info("Automation system enabled")
 end
 
 function automation.disable()
   automation.enabled = false
-  foundation.logger.info("Automation system disabled")
+  base.logger.info("Automation system disabled")
 end
 
 function automation.clear_all_rules()
@@ -421,7 +421,7 @@ function automation.clear_all_rules()
     end
   end
   automation.rules = {}
-  foundation.logger.info("All automation rules cleared")
+  base.logger.info("All automation rules cleared")
 end
 
 -- Get statistics

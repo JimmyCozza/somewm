@@ -219,7 +219,7 @@ somewm.key({
 
 -- React to new windows
 somewm.core.client.connect_signal("manage", function(client)
-  somewm.foundation.logger.info(string.format("New client: %s (%s)", 
+  somewm.base.logger.info(string.format("New client: %s (%s)", 
     client.title or "Untitled", client.class or "Unknown"))
   
   -- Show notification for new windows
@@ -228,7 +228,7 @@ end)
 
 -- React to client focus changes
 somewm.core.client.connect_signal("focus", function(client)
-  somewm.foundation.logger.debug(string.format("Focused: %s", 
+  somewm.base.logger.debug(string.format("Focused: %s", 
     client.title or "Untitled"))
 end)
 
@@ -241,8 +241,8 @@ somewm.key({
   on_press = function()
     somewm.notify("Goodbye!", 2)
     -- Add small delay to show notification
-    somewm.foundation.signal.connect_once("shutdown", function()
-      somewm.foundation.logger.info("SomeWM shutting down...")
+    somewm.base.signal.connect_once("shutdown", function()
+      somewm.base.logger.info("SomeWM shutting down...")
     end)
     somewm.quit()
   end,
@@ -273,4 +273,4 @@ Some.hello_world()
 -- Welcome notification
 somewm.notify("SomeWM Advanced Config Loaded", 3)
 
-somewm.foundation.logger.info("Advanced SomeWM configuration loaded with full feature set")
+somewm.base.logger.info("Advanced SomeWM configuration loaded with full feature set")

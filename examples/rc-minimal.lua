@@ -58,4 +58,4 @@ somewm.add_window_rule(
 -- Initialize compositor
 Some.hello_world()
 
-somewm.foundation.logger.info("Minimal SomeWM configuration loaded")
+somewm.base.logger.info("Minimal SomeWM configuration loaded")

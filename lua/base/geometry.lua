@@ -1,4 +1,4 @@
--- Foundation geometry utilities for SomeWM
+-- Base geometry utilities for SomeWM
 -- Based on AwesomeWM's gears.geometry for rectangle and position calculations
 
 local geometry = {}

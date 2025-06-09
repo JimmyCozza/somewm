@@ -97,7 +97,7 @@ somewm.key({
     -- logger.info("Old logging")
     
     -- NEW PATTERN (recommended):
-    somewm.foundation.logger.info("New logging via unified API")
+    somewm.base.logger.info("New logging via unified API")
     somewm.notify("Check logs for migration example", 2)
   end,
 })
@@ -121,7 +121,7 @@ somewm.add_window_rule(
 
 -- Use new signal system
 somewm.core.client.connect_signal("manage", function(client)
-  somewm.foundation.logger.info(string.format("New client managed: %s", 
+  somewm.base.logger.info(string.format("New client managed: %s", 
     client.title or "Untitled"))
   
   -- Welcome notification for new windows
@@ -137,7 +137,7 @@ somewm.key({
   group = "migration",
   on_press = function()
     somewm.notify("Migration to new API complete!", 3)
-    somewm.foundation.logger.info("All code now uses new 3-layer architecture")
+    somewm.base.logger.info("All code now uses new 3-layer architecture")
   end,
 })
 
@@ -166,7 +166,7 @@ somewm.key({
     focused.fullscreen = not focused.fullscreen
     somewm.notify("New: " .. (title or "Untitled"), 3)
     
-    somewm.foundation.logger.info("Demonstrated old vs new API patterns")
+    somewm.base.logger.info("Demonstrated old vs new API patterns")
   end,
 })
 
@@ -176,6 +176,6 @@ Some.hello_world()
 -- Startup notification
 somewm.notify("Migration example loaded - demonstrates old vs new patterns", 5)
 
-somewm.foundation.logger.info("Migration configuration loaded")
-somewm.foundation.logger.info("Shows side-by-side comparison of old vs new API patterns")
-somewm.foundation.logger.info("Use keybindings to see migration examples in action")
+somewm.base.logger.info("Migration configuration loaded")
+somewm.base.logger.info("Shows side-by-side comparison of old vs new API patterns")
+somewm.base.logger.info("Use keybindings to see migration examples in action")

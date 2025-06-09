@@ -1,6 +1,6 @@
 -- Practical Example: Advanced Window Management with Events
 local somewm = require("somewm")
-local logger = somewm.foundation.logger
+local logger = somewm.base.logger
 local client = somewm.core.client
 
 logger.info("Setting up practical event-based window management...")

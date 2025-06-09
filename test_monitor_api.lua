@@ -3,7 +3,7 @@
 
 local somewm = require("somewm")
 local monitor = somewm.core.monitor
-local logger = somewm.foundation.logger
+local logger = somewm.base.logger
 
 logger.info("=== Monitor API Test (Phase 4 - READ) ===")
 

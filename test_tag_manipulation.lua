@@ -3,7 +3,7 @@
 
 local somewm = require("somewm")
 local tag = somewm.core.tag
-local logger = somewm.foundation.logger
+local logger = somewm.base.logger
 
 logger.info("=== Tag Management Test (Phase 4 - WRITE) ===")
 

@@ -1,8 +1,8 @@
 -- UI widgets layer for SomeWM
--- High-level widget creation and management using foundation.object
+-- High-level widget creation and management using base.object
 -- Inspired by AwesomeWM's wibox system
 
-local foundation = require("foundation")
+local base = require("base")
 local lgi = require("lgi")
 local cairo = lgi.cairo
 local drawable = require("basic_drawable")
@@ -13,9 +13,9 @@ local widgets = {}
 -- Active widgets registry
 widgets.active_widgets = {}
 
--- Widget base class using foundation.object
+-- Widget base class using base.object
 function widgets.create_widget_base()
-  local widget = foundation.object.new()
+  local widget = base.object.new()
   
   -- Widget properties
   widget:add_property("width", {
@@ -137,7 +137,7 @@ function widgets.create_widget_base()
     end
     
     self:emit_signal("destroy")
-    foundation.object.destroy(self)
+    base.object.destroy(self)
   end
   
   return widget
@@ -164,7 +164,7 @@ function widgets.create_notification(text, timeout, config)
       return
     end
     
-    foundation.logger.debug(string.format("Drawing notification: %dx%d at (%d,%d) with text '%s'", 
+    base.logger.debug(string.format("Drawing notification: %dx%d at (%d,%d) with text '%s'", 
       self.width, self.height, self.x, self.y, self.text))
     
     -- Create Wayland surface
@@ -173,10 +173,10 @@ function widgets.create_notification(text, timeout, config)
     )
     
     if surface_created then
-      foundation.logger.info("Notification displayed using Wayland surface")
+      base.logger.info("Notification displayed using Wayland surface")
       self:set_private("surface_id", surface_created)
     else
-      foundation.logger.warn("Could not create Wayland surface for notification")
+      base.logger.warn("Could not create Wayland surface for notification")
     end
   end
   
@@ -192,7 +192,7 @@ function widgets.create_notification(text, timeout, config)
   
   -- Auto-hide after timeout
   if notification:get_private().timeout > 0 then
-    -- In a real implementation, this would use foundation.timer
+    -- In a real implementation, this would use base.timer
     -- For now, we'll use a simple approach
     notification:set_private("created_at", os.time())
   end
@@ -203,7 +203,7 @@ function widgets.create_notification(text, timeout, config)
   -- Show the notification
   notification:show()
   
-  foundation.logger.info(string.format("Created notification with text: '%s', timeout: %d", 
+  base.logger.info(string.format("Created notification with text: '%s', timeout: %d", 
     text, notification:get_private().timeout))
   
   return notification
@@ -211,17 +211,17 @@ end
 
 -- Test widget functionality
 function widgets.test_notification(text, timeout)
-  foundation.logger.info("== Widget Test Function Called ==")
-  foundation.logger.info(string.format("Creating test notification with text: '%s'", text or "Test"))
+  base.logger.info("== Widget Test Function Called ==")
+  base.logger.info(string.format("Creating test notification with text: '%s'", text or "Test"))
   
   -- Test LGI directly first
-  foundation.logger.debug("Testing LGI drawing capability")
+  base.logger.debug("Testing LGI drawing capability")
   
   local ok, err = pcall(function()
     local surface = cairo.ImageSurface.create(cairo.Format.ARGB32, 300, 100)
     local cr = cairo.Context.create(surface)
     
-    foundation.logger.debug("Created test surface and context")
+    base.logger.debug("Created test surface and context")
     
     cr:set_source_rgba(0.2, 0.2, 0.2, 0.8)
     cr:rectangle(0, 0, 300, 100)
@@ -246,21 +246,21 @@ function widgets.test_notification(text, timeout)
   end)
   
   if ok then
-    foundation.logger.info("LGI drawing test completed successfully")
+    base.logger.info("LGI drawing test completed successfully")
   else
-    foundation.logger.error("LGI drawing test failed: " .. tostring(err))
+    base.logger.error("LGI drawing test failed: " .. tostring(err))
   end
   
   -- Create notification using new API
   local notification = widgets.create_notification(text or "Test Notification", timeout or 5)
   
-  foundation.logger.info("== Widget Test Function Completed ==")
+  base.logger.info("== Widget Test Function Completed ==")
   return notification
 end
 
 -- Draw simple widget using Cairo (for backward compatibility)
 function widgets.draw_simple_widget(width, height, cairo_context, text)
-  foundation.logger.debug(string.format("Drawing widget: %dx%d with text '%s'", width, height, text or ""))
+  base.logger.debug(string.format("Drawing widget: %dx%d with text '%s'", width, height, text or ""))
   
   if cairo_context then
     local ok, err = pcall(function()
@@ -268,13 +268,13 @@ function widgets.draw_simple_widget(width, height, cairo_context, text)
     end)
     
     if ok then
-      foundation.logger.debug("Drew on Cairo context successfully")
+      base.logger.debug("Drew on Cairo context successfully")
     else
-      foundation.logger.error("Error drawing on Cairo context: " .. tostring(err))
+      base.logger.error("Error drawing on Cairo context: " .. tostring(err))
       return false
     end
   else
-    foundation.logger.warn("No Cairo context provided, widget won't be displayed")
+    base.logger.warn("No Cairo context provided, widget won't be displayed")
     return false
   end
   
@@ -283,28 +283,28 @@ end
 
 -- Legacy compatibility functions
 function widgets.show_widget(widget)
-  foundation.logger.warn("widgets.show_widget is deprecated, use widget:show() instead")
+  base.logger.warn("widgets.show_widget is deprecated, use widget:show() instead")
   
   if type(widget) == "table" and widget.show then
     widget:show()
     return true
   elseif type(widget) == "table" and widget.text then
-    foundation.logger.info("Converting legacy widget to new API")
+    base.logger.info("Converting legacy widget to new API")
     return widgets.create_notification(widget.text, widget.timeout)
   else
-    foundation.logger.error("Invalid widget passed to show_widget")
+    base.logger.error("Invalid widget passed to show_widget")
     return false
   end
 end
 
 function widgets.hide_widget(widget)
-  foundation.logger.warn("widgets.hide_widget is deprecated, use widget:hide() instead")
+  base.logger.warn("widgets.hide_widget is deprecated, use widget:hide() instead")
   
   if type(widget) == "table" and widget.hide then
     widget:hide()
     return true
   else
-    foundation.logger.error("Invalid widget passed to hide_widget")
+    base.logger.error("Invalid widget passed to hide_widget")
     return false
   end
 end

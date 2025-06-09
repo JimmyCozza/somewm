@@ -2,7 +2,7 @@
 -- High-level user interface and automation modules
 -- Inspired by AwesomeWM's modular architecture
 
-local foundation = require("foundation")
+local base = require("base")
 
 -- Lazy loading table to prevent circular dependencies
 local ui = {}
@@ -18,7 +18,7 @@ setmetatable(ui, {
   __index = function(table, key)
     local module_path = lazy_modules[key]
     if module_path then
-      foundation.logger.debug("Lazy loading UI module: " .. module_path)
+      base.logger.debug("Lazy loading UI module: " .. module_path)
       local module = require(module_path)
       rawset(table, key, module)
       return module
@@ -44,8 +44,8 @@ setmetatable(ui, {
     if not rawget(table, "_initialized") and result then
       rawset(table, "_initialized", true)
       -- Delay initialization to avoid circular dependencies
-      local timer = foundation.signal.connect_once("ui_ready", init_automation)
-      foundation.signal.emit("ui_ready")
+      local timer = base.signal.connect_once("ui_ready", init_automation)
+      base.signal.emit("ui_ready")
     end
     
     return result
@@ -76,7 +76,7 @@ function ui.clear_all()
   if rawget(ui, "automation") then
     ui.automation.clear_all_rules()
   end
-  foundation.logger.info("All UI components cleared")
+  base.logger.info("All UI components cleared")
 end
 
 function ui.get_stats()
@@ -93,14 +93,14 @@ function ui.enable_smart_behaviors()
   ui.automation.enable_smart_focus()
   ui.automation.enable_smart_placement()
   ui.automation.enable_tag_persistence()
-  foundation.logger.info("Smart behaviors enabled")
+  base.logger.info("Smart behaviors enabled")
 end
 
 -- Help system
 function ui.show_help()
   if rawget(ui, "keybindings") then
     local help_text = ui.keybindings.get_help_text()
-    foundation.logger.info("Keybinding Help:\n" .. help_text)
+    base.logger.info("Keybinding Help:\n" .. help_text)
     
     -- Could also show as notification
     if rawget(ui, "widgets") then

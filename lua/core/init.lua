@@ -1,9 +1,9 @@
 -- Core layer for SomeWM
 -- Window manager functionality based on AwesomeWM's awful/ architecture
--- Requires foundation layer and provides high-level compositor control
+-- Requires base layer and provides high-level compositor control
 
--- Import foundation layer
-local foundation = require("foundation")
+-- Import base layer
+local base = require("base")
 
 -- Core layer modules with lazy loading to prevent circular dependencies
 local core = {}
@@ -30,50 +30,50 @@ core.rules = lazy_require("rules")
 
 -- Initialize core systems
 function core.init()
-  -- Initialize foundation first
-  foundation.init()
-  foundation.logger.info("Core layer initializing")
+  -- Initialize base first
+  base.init()
+  base.logger.info("Core layer initializing")
   
   -- Initialize tag system
   core.tag.get_count() -- This triggers tag initialization
   
   -- Set up global client event handling
-  foundation.signal.connect("client::new", function(c_client)
+  base.signal.connect("client::new", function(c_client)
     local client = core.client.create_client_object(c_client)
     if client then
-      foundation.signal.emit("client::manage", client)
+      base.signal.emit("client::manage", client)
       -- Apply rules to new client
       core.rules.apply_to_client(client)
     end
   end)
   
   -- Set up cleanup handlers
-  foundation.signal.connect("client::destroyed", function(c_client)
+  base.signal.connect("client::destroyed", function(c_client)
     core.client.cleanup_client(c_client)
   end)
   
-  foundation.signal.connect("monitor::destroyed", function(c_monitor)
+  base.signal.connect("monitor::destroyed", function(c_monitor)
     core.monitor.cleanup_monitor(c_monitor)
   end)
   
-  foundation.logger.info("Core layer initialized")
-  foundation.signal.emit("core::ready")
+  base.logger.info("Core layer initialized")
+  base.signal.emit("core::ready")
   
   return true
 end
 
 -- Clean shutdown of core systems
 function core.shutdown()
-  foundation.logger.info("Core layer shutting down")
+  base.logger.info("Core layer shutting down")
   
   -- Clear all rules
   core.rules.clear()
   
   -- Emit shutdown signal
-  foundation.signal.emit("core::shutdown")
+  base.signal.emit("core::shutdown")
   
-  -- Shutdown foundation
-  foundation.shutdown()
+  -- Shutdown base
+  base.shutdown()
 end
 
 -- Core version information
@@ -108,8 +108,8 @@ end
 function core.spawn(cmd, properties)
   properties = properties or {}
   
-  -- Use foundation logger
-  foundation.logger.info("Spawning: " .. cmd)
+  -- Use base logger
+  base.logger.info("Spawning: " .. cmd)
   
   -- Store properties for upcoming client
   if properties.rule then
@@ -124,7 +124,7 @@ function core.spawn(cmd, properties)
     local rule_id = core.rules.add(spawn_rule)
     
     -- Remove rule after timeout (in case app doesn't start)
-    foundation.signal.connect_once("client::manage", function()
+    base.signal.connect_once("client::manage", function()
       core.rules.remove(rule_id)
     end)
   end
@@ -137,7 +137,7 @@ end
 function core.manage_client(client, options)
   options = options or {}
   
-  foundation.logger.debug("Managing client: " .. (client.title or "unknown"))
+  base.logger.debug("Managing client: " .. (client.title or "unknown"))
   
   -- Apply focus if requested
   if options.focus then
@@ -154,7 +154,7 @@ function core.manage_client(client, options)
     options.callback(client)
   end
   
-  foundation.signal.emit("core::client_managed", client, options)
+  base.signal.emit("core::client_managed", client, options)
 end
 
 -- Layout management utilities
@@ -164,12 +164,12 @@ function core.arrange_clients(screen, layout_name)
   
   layout_name = layout_name or "tile"
   
-  foundation.logger.debug("Arranging clients with layout: " .. layout_name)
+  base.logger.debug("Arranging clients with layout: " .. layout_name)
   
   -- Use monitor's layout calculation
   core.monitor.apply_layout(screen, layout_name)
   
-  foundation.signal.emit("core::layout_applied", screen, layout_name)
+  base.signal.emit("core::layout_applied", screen, layout_name)
 end
 
 -- Tag management utilities
@@ -179,7 +179,7 @@ function core.view_tag(tag_number, screen)
   
   local success = core.tag.view_on_monitor(screen, tag_number)
   if success then
-    foundation.signal.emit("core::tag_viewed", tag_number, screen)
+    base.signal.emit("core::tag_viewed", tag_number, screen)
   end
   
   return success
@@ -194,7 +194,7 @@ function core.toggle_tag(tag_number, screen)
   local new_tags = current_tags ~ tag_mask  -- XOR to toggle
   
   screen.tags = new_tags
-  foundation.signal.emit("core::tag_toggled", tag_number, screen)
+  base.signal.emit("core::tag_toggled", tag_number, screen)
   
   return true
 end
@@ -208,7 +208,7 @@ function core.move_client_to_tag(client, tag_number)
   local tag_mask = 1 << (tag_number - 1)
   client.tags = tag_mask
   
-  foundation.signal.emit("core::client_moved_to_tag", client, tag_number)
+  base.signal.emit("core::client_moved_to_tag", client, tag_number)
   return true
 end
 
@@ -220,7 +220,7 @@ function core.toggle_client_tag(client, tag_number)
   local tag_mask = 1 << (tag_number - 1)
   client.tags = client.tags ~ tag_mask  -- XOR to toggle
   
-  foundation.signal.emit("core::client_tag_toggled", client, tag_number)
+  base.signal.emit("core::client_tag_toggled", client, tag_number)
   return true
 end
 
@@ -253,11 +253,11 @@ end
 
 -- Core signal handling
 function core.connect_signal(signal_name, callback)
-  foundation.signal.connect("core::" .. signal_name, callback)
+  base.signal.connect("core::" .. signal_name, callback)
 end
 
 function core.disconnect_signal(signal_name, callback)
-  foundation.signal.disconnect("core::" .. signal_name, callback)
+  base.signal.disconnect("core::" .. signal_name, callback)
 end
 
 -- Export core layer

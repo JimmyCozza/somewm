@@ -1,8 +1,8 @@
 -- UI keybindings layer for SomeWM
--- High-level keybinding management using foundation.signal
+-- High-level keybinding management using base.signal
 -- Inspired by AwesomeWM's awful.key system
 
-local foundation = require("foundation")
+local base = require("base")
 
 local keybindings = {}
 
@@ -27,7 +27,7 @@ local function get_keysym(key)
   if type(get_keysym_native) == "function" then
     return get_keysym_native(key)
   else
-    foundation.logger.error("get_keysym_native function not available")
+    base.logger.error("get_keysym_native function not available")
     return nil
   end
 end
@@ -45,7 +45,7 @@ local function parse_modifiers(modifiers)
     if flag then
       mods = mods | flag
     else
-      foundation.logger.warn("Unknown modifier: " .. tostring(mod))
+      base.logger.warn("Unknown modifier: " .. tostring(mod))
     end
   end
   
@@ -54,7 +54,7 @@ end
 
 -- Keybinding object class
 function keybindings.create_binding(config)
-  local binding = foundation.object.new()
+  local binding = base.object.new()
   
   -- Required properties
   if not config.modifiers or not config.key then
@@ -123,7 +123,7 @@ function keybindings.create_binding(config)
     local keysym = get_keysym(self.key)
     
     if not keysym then
-      foundation.logger.error("Unknown key: " .. tostring(self.key))
+      base.logger.error("Unknown key: " .. tostring(self.key))
       return false
     end
     
@@ -132,13 +132,13 @@ function keybindings.create_binding(config)
     
     -- Register with compositor (wrapper around C function)
     if type(register_key_binding) == "function" then
-      foundation.logger.debug(string.format("Registering keybinding: %s+%s", 
+      base.logger.debug(string.format("Registering keybinding: %s+%s", 
         table.concat(self.modifiers, "+"), self.key))
       
       register_key_binding(mods, keysym, on_press, on_release)
       return true
     else
-      foundation.logger.error("register_key_binding function not available")
+      base.logger.error("register_key_binding function not available")
       return false
     end
   end
@@ -148,7 +148,7 @@ function keybindings.create_binding(config)
     if self:_register_with_compositor() then
       self:set_private("enabled", true)
       self:emit_signal("enabled")
-      foundation.logger.info(string.format("Enabled keybinding: %s+%s (%s)", 
+      base.logger.info(string.format("Enabled keybinding: %s+%s (%s)", 
         table.concat(self.modifiers, "+"), self.key, self.description))
       return true
     end
@@ -159,7 +159,7 @@ function keybindings.create_binding(config)
     -- TODO: Implement unregister_key_binding in C
     self:set_private("enabled", false)
     self:emit_signal("disabled")
-    foundation.logger.info(string.format("Disabled keybinding: %s+%s", 
+    base.logger.info(string.format("Disabled keybinding: %s+%s", 
       table.concat(self.modifiers, "+"), self.key))
   end
   
@@ -167,22 +167,22 @@ function keybindings.create_binding(config)
     action = action or "press"
     
     if action == "press" and self:get_private().on_press then
-      foundation.logger.debug(string.format("Triggering keybinding: %s+%s (press)", 
+      base.logger.debug(string.format("Triggering keybinding: %s+%s (press)", 
         table.concat(self.modifiers, "+"), self.key))
       
       local success, err = pcall(self:get_private().on_press)
       if not success then
-        foundation.logger.error(string.format("Error in keybinding callback: %s", err))
+        base.logger.error(string.format("Error in keybinding callback: %s", err))
       end
       
       self:emit_signal("triggered", "press")
     elseif action == "release" and self:get_private().on_release then
-      foundation.logger.debug(string.format("Triggering keybinding: %s+%s (release)", 
+      base.logger.debug(string.format("Triggering keybinding: %s+%s (release)", 
         table.concat(self.modifiers, "+"), self.key))
       
       local success, err = pcall(self:get_private().on_release)
       if not success then
-        foundation.logger.error(string.format("Error in keybinding release callback: %s", err))
+        base.logger.error(string.format("Error in keybinding release callback: %s", err))
       end
       
       self:emit_signal("triggered", "release")
@@ -211,7 +211,7 @@ function keybindings.create_binding(config)
     end
     
     self:emit_signal("destroy")
-    foundation.object.destroy(self)
+    base.object.destroy(self)
   end
   
   return binding
@@ -224,7 +224,7 @@ function keybindings.add(config)
   
   -- Check for conflicts
   if keybindings.bindings[id] then
-    foundation.logger.warn(string.format("Keybinding conflict: %s already registered", id))
+    base.logger.warn(string.format("Keybinding conflict: %s already registered", id))
     keybindings.bindings[id]:destroy()
   end
   

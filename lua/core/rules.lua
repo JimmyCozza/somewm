@@ -1,7 +1,7 @@
 -- Core rules system for SomeWM
 -- Based on AwesomeWM's ruled.client for declarative window automation
 
-local foundation = require("foundation")
+local base = require("base")
 
 local rules = {}
 
@@ -95,7 +95,7 @@ end
 local function apply_rule_properties(rule, client)
   if not rule.properties then return end
   
-  foundation.logger.debug("Applying rule properties to client: " .. (client.title or "unknown"))
+  base.logger.debug("Applying rule properties to client: " .. (client.title or "unknown"))
   
   for property, value in pairs(rule.properties) do
     if type(value) == "function" then
@@ -132,7 +132,7 @@ end
 local function apply_rule_signals(rule, client)
   if not rule.signals then return end
   
-  foundation.logger.debug("Connecting rule signals for client: " .. (client.title or "unknown"))
+  base.logger.debug("Connecting rule signals for client: " .. (client.title or "unknown"))
   
   for signal_name, callback in pairs(rule.signals) do
     client:connect_signal(signal_name, callback)
@@ -142,22 +142,22 @@ end
 -- Apply rule callbacks
 local function apply_rule_callbacks(rule, client)
   if rule.callback and type(rule.callback) == "function" then
-    foundation.logger.debug("Executing rule callback for client: " .. (client.title or "unknown"))
+    base.logger.debug("Executing rule callback for client: " .. (client.title or "unknown"))
     
     local success, err = pcall(rule.callback, client)
     if not success then
-      foundation.logger.error("Rule callback error: " .. tostring(err))
+      base.logger.error("Rule callback error: " .. tostring(err))
     end
   end
 end
 
 -- Main rule application function
 local function apply_rules_to_client(client)
-  foundation.logger.debug("Applying rules to client: " .. (client.title or "unknown"))
+  base.logger.debug("Applying rules to client: " .. (client.title or "unknown"))
   
   for _, rule in ipairs(rule_list) do
     if rule.enabled ~= false and match_rule(rule, client) then
-      foundation.logger.debug("Rule matched: " .. (rule.description or "unnamed rule"))
+      base.logger.debug("Rule matched: " .. (rule.description or "unnamed rule"))
       
       -- Apply in order: properties, signals, callbacks
       apply_rule_properties(rule, client)
@@ -166,7 +166,7 @@ local function apply_rules_to_client(client)
       
       -- Check if this rule should stop further processing
       if rule.stop_processing then
-        foundation.logger.debug("Rule processing stopped by rule: " .. (rule.description or "unnamed rule"))
+        base.logger.debug("Rule processing stopped by rule: " .. (rule.description or "unnamed rule"))
         break
       end
     end
@@ -187,8 +187,8 @@ function rules.add(rule)
   
   table.insert(rule_list, rule)
   
-  foundation.logger.info("Added rule: " .. (rule.description or "rule #" .. rule.id))
-  foundation.signal.emit("rules::rule_added", rule)
+  base.logger.info("Added rule: " .. (rule.description or "rule #" .. rule.id))
+  base.signal.emit("rules::rule_added", rule)
   
   return rule.id
 end
@@ -198,8 +198,8 @@ function rules.remove(rule_id)
   for i, rule in ipairs(rule_list) do
     if rule.id == rule_id then
       table.remove(rule_list, i)
-      foundation.logger.info("Removed rule: " .. (rule.description or "rule #" .. rule_id))
-      foundation.signal.emit("rules::rule_removed", rule_id)
+      base.logger.info("Removed rule: " .. (rule.description or "rule #" .. rule_id))
+      base.signal.emit("rules::rule_removed", rule_id)
       return true
     end
   end
@@ -211,7 +211,7 @@ function rules.enable(rule_id)
   for _, rule in ipairs(rule_list) do
     if rule.id == rule_id then
       rule.enabled = true
-      foundation.signal.emit("rules::rule_enabled", rule_id)
+      base.signal.emit("rules::rule_enabled", rule_id)
       return true
     end
   end
@@ -222,7 +222,7 @@ function rules.disable(rule_id)
   for _, rule in ipairs(rule_list) do
     if rule.id == rule_id then
       rule.enabled = false
-      foundation.signal.emit("rules::rule_disabled", rule_id)
+      base.signal.emit("rules::rule_disabled", rule_id)
       return true
     end
   end
@@ -247,8 +247,8 @@ end
 -- Clear all rules
 function rules.clear()
   rule_list = {}
-  foundation.logger.info("All rules cleared")
-  foundation.signal.emit("rules::all_cleared")
+  base.logger.info("All rules cleared")
+  base.signal.emit("rules::all_cleared")
 end
 
 -- Apply rules to a specific client
@@ -265,7 +265,7 @@ function rules.apply_to_all_clients()
     apply_rules_to_client(client)
   end
   
-  foundation.logger.info("Applied rules to " .. #clients .. " clients")
+  base.logger.info("Applied rules to " .. #clients .. " clients")
 end
 
 -- Rule validation
@@ -295,7 +295,7 @@ end
 
 -- Debugging functions
 function rules.debug_client_match(client)
-  foundation.logger.debug("Testing rules against client: " .. (client.title or "unknown"))
+  base.logger.debug("Testing rules against client: " .. (client.title or "unknown"))
   
   local matches = {}
   for _, rule in ipairs(rule_list) do
@@ -371,17 +371,17 @@ rules.templates = {
 }
 
 -- Connect to client events for automatic rule application
-foundation.signal.connect("client::map", function(client)
+base.signal.connect("client::map", function(client)
   apply_rules_to_client(client)
 end)
 
 -- Signal handling
 function rules.connect_signal(signal_name, callback)
-  foundation.signal.connect("rules::" .. signal_name, callback)
+  base.signal.connect("rules::" .. signal_name, callback)
 end
 
 function rules.disconnect_signal(signal_name, callback)
-  foundation.signal.disconnect("rules::" .. signal_name, callback)
+  base.signal.disconnect("rules::" .. signal_name, callback)
 end
 
 return rules

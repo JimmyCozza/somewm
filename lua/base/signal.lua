@@ -1,4 +1,4 @@
--- Foundation signal system for SomeWM
+-- Base signal system for SomeWM
 -- Global signal handling for cross-module communication
 
 local signal = {}
@@ -183,7 +183,7 @@ function signal.connect_debounced(signal_name, callback, delay)
       callback(table.unpack(args))
     end
     
-    -- In a real implementation, this would use foundation.timer
+    -- In a real implementation, this would use base.timer
     -- For now, we'll call it immediately
     timer()
   end

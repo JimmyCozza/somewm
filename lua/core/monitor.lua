@@ -1,14 +1,14 @@
 -- Core monitor management for SomeWM
--- Based on AwesomeWM's awful.screen with foundation.object integration
+-- Based on AwesomeWM's awful.screen with base.object integration
 
-local foundation = require("foundation")
+local base = require("base")
 
 local monitor = {}
 
 -- Weak table to store monitor objects by C pointer
 local monitor_objects = setmetatable({}, { __mode = "v" })
 
--- Create a monitor object wrapper with foundation.object features
+-- Create a monitor object wrapper with base.object features
 local function create_monitor_object(c_monitor)
   if not c_monitor then return nil end
   
@@ -17,8 +17,8 @@ local function create_monitor_object(c_monitor)
     return monitor_objects[c_monitor]
   end
   
-  -- Create new monitor object based on foundation.object
-  local obj = foundation.object.new()
+  -- Create new monitor object based on base.object
+  local obj = base.object.new()
   
   -- Store the C monitor pointer privately
   obj:set_private("c_monitor", c_monitor)
@@ -34,14 +34,14 @@ local function create_monitor_object(c_monitor)
   obj:add_property("geometry", {
     getter = function(self)
       local m = self:get_private().c_monitor
-      return m and Some.monitor_get_geometry(m) or foundation.geometry.rectangle(0, 0, 0, 0)
+      return m and Some.monitor_get_geometry(m) or base.geometry.rectangle(0, 0, 0, 0)
     end
   })
   
   obj:add_property("workarea", {
     getter = function(self)
       local m = self:get_private().c_monitor
-      return m and Some.monitor_get_workarea(m) or foundation.geometry.rectangle(0, 0, 0, 0)
+      return m and Some.monitor_get_workarea(m) or base.geometry.rectangle(0, 0, 0, 0)
     end
   })
   
@@ -136,7 +136,7 @@ local function create_monitor_object(c_monitor)
     
     for _, client in ipairs(all_clients) do
       -- Check if client's geometry intersects with monitor
-      if foundation.geometry.intersects(client.geometry, self.geometry) then
+      if base.geometry.intersects(client.geometry, self.geometry) then
         table.insert(monitor_clients, client)
       end
     end
@@ -246,7 +246,7 @@ function monitor.calculate_layout(monitor_obj, layout_name)
   if #clients == 0 then return {} end
   
   if layout_name == "tile" then
-    -- Calculate tiled layout using foundation.geometry
+    -- Calculate tiled layout using base.geometry
     local master_count = math.min(monitor_obj.master_count, #clients)
     local master_width = area.width * monitor_obj.master_factor
     
@@ -254,22 +254,22 @@ function monitor.calculate_layout(monitor_obj, layout_name)
     
     if master_count == #clients then
       -- All clients are masters
-      local master_areas = foundation.geometry.split_vertical(area, master_count)
+      local master_areas = base.geometry.split_vertical(area, master_count)
       for i, client in ipairs(clients) do
         geometries[client] = master_areas[i]
       end
     else
       -- Split between master and stack
-      local master_area = foundation.geometry.rectangle(
+      local master_area = base.geometry.rectangle(
         area.x, area.y, master_width, area.height
       )
-      local stack_area = foundation.geometry.rectangle(
+      local stack_area = base.geometry.rectangle(
         area.x + master_width, area.y, area.width - master_width, area.height
       )
       
       -- Arrange masters
       if master_count > 0 then
-        local master_areas = foundation.geometry.split_vertical(master_area, master_count)
+        local master_areas = base.geometry.split_vertical(master_area, master_count)
         for i = 1, master_count do
           geometries[clients[i]] = master_areas[i]
         end
@@ -278,7 +278,7 @@ function monitor.calculate_layout(monitor_obj, layout_name)
       -- Arrange stack
       local stack_count = #clients - master_count
       if stack_count > 0 then
-        local stack_areas = foundation.geometry.split_vertical(stack_area, stack_count)
+        local stack_areas = base.geometry.split_vertical(stack_area, stack_count)
         for i = 1, stack_count do
           geometries[clients[master_count + i]] = stack_areas[i]
         end
@@ -317,16 +317,16 @@ function monitor.apply_layout(monitor_obj, layout_name)
     end
   end
   
-  foundation.signal.emit("monitor::layout_applied", monitor_obj, layout_name)
+  base.signal.emit("monitor::layout_applied", monitor_obj, layout_name)
 end
 
 -- Signal handling (delegates to global signals)
 function monitor.connect_signal(signal_name, callback)
-  foundation.signal.connect("monitor::" .. signal_name, callback)
+  base.signal.connect("monitor::" .. signal_name, callback)
 end
 
 function monitor.disconnect_signal(signal_name, callback)
-  foundation.signal.disconnect("monitor::" .. signal_name, callback)
+  base.signal.disconnect("monitor::" .. signal_name, callback)
 end
 
 -- Monitor-specific signal handlers

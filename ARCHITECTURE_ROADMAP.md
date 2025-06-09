@@ -20,7 +20,7 @@ This document outlines the plan to restructure SomeWM into a clean 3-layer archi
 ### Current File Structure
 ```
 lua/
-├── foundation/       -- ✅ Base utilities and object system
+├── base/            -- ✅ Base utilities and object system
 │   ├── init.lua
 │   ├── object.lua    -- Signal/property system
 │   ├── geometry.lua  -- Position/rectangle utilities
@@ -79,11 +79,11 @@ examples/            -- ✅ Example configurations
 
 Based on AwesomeWM's proven architecture, SomeWM will use a 3-sublayer approach:
 
-#### **Foundation Layer (`lua/foundation/`)**
+#### **Base Layer (`lua/base/`)**
 Core utilities and base systems (inspired by AwesomeWM's `gears/`)
 ```
-lua/foundation/
-├── init.lua          -- Export all foundation modules
+lua/base/
+├── init.lua          -- Export all base modules
 ├── object.lua        -- Base object system with signals/properties
 ├── geometry.lua      -- Rectangle/position utilities  
 ├── signal.lua        -- Event system core
@@ -127,12 +127,12 @@ lua/ui/
 **Structure** (following AwesomeWM patterns):
 ```lua
 -- Import the 3-layer library
-local foundation = require("foundation")
+local base = require("base")
 local core = require("core") 
 local ui = require("ui")
 
 -- Or import the unified interface
-local somewm = require("somewm") -- exports foundation + core + ui
+local somewm = require("somewm") -- exports base + core + ui
 
 -- Pure user configuration  
 local config = {
@@ -151,7 +151,7 @@ core.client.connect_signal("request::activate", function(c)
   c.urgent = false  -- Direct property access
 end)
 
--- Keybindings using foundation timer + core spawn
+-- Keybindings using base timer + core spawn
 ui.keybindings.add(config.modkey, "Return", function()
   core.spawn(config.terminal)
 end)
@@ -164,18 +164,18 @@ end)
 - [x] Design 3-layer separation
 - [x] Create roadmap document
 
-### Phase 2: Foundation Layer (inspired by gears/) ✅ COMPLETED
-- [x] Create `lua/foundation/` directory structure
-- [x] Implement `lua/foundation/object.lua` - base object system with signals
-- [x] Implement `lua/foundation/geometry.lua` - rectangle/position utilities
-- [x] Implement `lua/foundation/signal.lua` - event system core
-- [x] Migrate `lua/logger.lua` → `lua/foundation/logger.lua`
-- [x] Create `lua/foundation/init.lua` exporting all modules
+### Phase 2: Base Layer (inspired by gears/) ✅ COMPLETED
+- [x] Create `lua/base/` directory structure
+- [x] Implement `lua/base/object.lua` - base object system with signals
+- [x] Implement `lua/base/geometry.lua` - rectangle/position utilities
+- [x] Implement `lua/base/signal.lua` - event system core
+- [x] Migrate `lua/logger.lua` → `lua/base/logger.lua`
+- [x] Create `lua/base/init.lua` exporting all modules
 
 ### Phase 3: Core Layer Migration (inspired by awful/) ✅ COMPLETED
 - [x] Create `lua/core/` directory structure
 - [x] Migrate `lua/client.lua` → `lua/core/client.lua`
-  - [x] Use foundation.object as base class
+  - [x] Use base.object as base class
   - [x] Implement property access pattern
   - [x] Abstract away direct `Some.*` calls
 - [x] Migrate `lua/monitor.lua` → `lua/core/monitor.lua`
@@ -186,11 +186,11 @@ end)
 ### Phase 4: UI/Automation Layer (inspired by wibox/ruled/) ✅ COMPLETED
 - [x] Create `lua/ui/` directory structure
 - [x] Migrate `lua/widgets.lua` → `lua/ui/widgets.lua`
-  - [x] Use foundation.object for widget base classes
+  - [x] Use base.object for widget base classes
   - [x] Abstract Cairo/LGI integration
   - [x] Implement property access pattern
   - [x] Remove direct `Some.*` calls
-- [x] Implement `lua/ui/keybindings.lua` with foundation.signal
+- [x] Implement `lua/ui/keybindings.lua` with base.signal
   - [x] Property-based keybinding objects
   - [x] Signal system integration
   - [x] Group management and help system
@@ -208,7 +208,7 @@ end)
 
 ### Phase 5: Configuration Cleanup ✅ COMPLETED
 - [x] Create unified `lua/somewm.lua` entry point
-  - [x] Unified interface exporting foundation/core/ui
+  - [x] Unified interface exporting base/core/ui
   - [x] Convenience functions for common operations
   - [x] Configuration helpers and initialization
   - [x] Backward compatibility layer integration
@@ -288,7 +288,7 @@ end)
 #### **Module Organization**
 - Every module has `init.lua` that exports submodules
 - Use lazy loading with metatables: `setmetatable({}, {__index = function() return require("module") end})`
-- Consistent 3-layer import: `foundation` → `core` → `ui`
+- Consistent 3-layer import: `base` → `core` → `ui`
 
 #### **Naming Conventions**
 - Functions: `verb_noun` format (e.g., `client.focus_byidx`, `tag.swap_with`)
@@ -296,7 +296,7 @@ end)
 - Signals: `event_name` format (e.g., `"property::name"`, `"request::activate"`)
 
 #### **Object System** 
-- Base class: `foundation.object` with signals and property access
+- Base class: `base.object` with signals and property access
 - Property pattern: `obj.property = value` auto-calls setters
 - Signal pattern: `obj:connect_signal(name, callback)` for events
 - Reference counting: Automatic C object lifetime management
@@ -360,7 +360,7 @@ end)
 **Next Milestone**: Complete Phase 6 (Memory Management & C Integration)
 
 **Completed Timeline**: 
-- Phase 2 (Foundation): ✅ 3 days
+- Phase 2 (Base): ✅ 3 days
 - Phase 3 (Core): ✅ 4 days  
 - Phase 4 (UI): ✅ 2 days
 - Phase 5 (Config): ✅ 1 day
@@ -377,7 +377,7 @@ end)
 ## AwesomeWM Architecture Insights Applied
 
 ### Key Learnings Integrated:
-- ✅ **3-sublayer architecture**: foundation/core/ui instead of flat structure
+- ✅ **3-sublayer architecture**: base/core/ui instead of flat structure
 - ✅ **Signal-based events**: Observer pattern for all lifecycle management
 - ✅ **Property access abstraction**: `obj.property` syntax with automatic getters/setters
 - ✅ **Init.lua pattern**: Consistent module exports across all layers

@@ -1,4 +1,4 @@
--- Foundation object system for SomeWM
+-- Base object system for SomeWM
 -- Based on AwesomeWM's gears.object with signals and property management
 
 local object = {}

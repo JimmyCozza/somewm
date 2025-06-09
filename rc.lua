@@ -1,5 +1,5 @@
 -- SomeWM Configuration
--- Using the new 3-layer architecture: foundation/core/ui
+-- Using the new 3-layer architecture: base/core/ui
 
 local somewm = require("somewm")
 
@@ -128,14 +128,14 @@ somewm.key({
   description = "show a test widget",
   group = "widgets",
   on_press = function()
-    somewm.foundation.logger.info("'w' key pressed, creating notification widget")
+    somewm.base.logger.info("'w' key pressed, creating notification widget")
     local ok, err = pcall(function()
       somewm.notify("Hello from SomeWM!", 5)
     end)
     if not ok then
-      somewm.foundation.logger.error("Failed to create widget: " .. tostring(err))
+      somewm.base.logger.error("Failed to create widget: " .. tostring(err))
     else
-      somewm.foundation.logger.info("Widget creation successful")
+      somewm.base.logger.info("Widget creation successful")
     end
   end,
 })
@@ -146,14 +146,14 @@ somewm.key({
   description = "test lgi widget drawing",
   group = "widgets",
   on_press = function()
-    somewm.foundation.logger.info("'g' key pressed, running direct LGI test")
+    somewm.base.logger.info("'g' key pressed, running direct LGI test")
     local ok, err = pcall(function()
       somewm.ui.widgets.test_notification("Direct LGI Test", 5)
     end)
     if not ok then
-      somewm.foundation.logger.error("Failed to run LGI test: " .. tostring(err))
+      somewm.base.logger.error("Failed to run LGI test: " .. tostring(err))
     else
-      somewm.foundation.logger.info("LGI test completed successfully")
+      somewm.base.logger.info("LGI test completed successfully")
     end
   end,
 })
@@ -164,7 +164,7 @@ somewm.key({
   description = "test notification system",
   group = "widgets",
   on_press = function()
-    somewm.foundation.logger.info("'n' key pressed, testing notification system")
+    somewm.base.logger.info("'n' key pressed, testing notification system")
     
     -- Use the wayland surface directly
     local wayland_surface = require("wayland_surface")
@@ -178,7 +178,7 @@ somewm.key({
   description = "test menu-based notification",
   group = "widgets",
   on_press = function()
-    somewm.foundation.logger.info("'d' key pressed, testing menu-based notification")
+    somewm.base.logger.info("'d' key pressed, testing menu-based notification")
     
     local wayland_surface = require("wayland_surface")
     wayland_surface.display_message("Test menu-based notification")
@@ -192,7 +192,7 @@ somewm.key({
   description = "test client API",
   group = "clients",
   on_press = function()
-    somewm.foundation.logger.info("'c' key pressed, testing client API")
+    somewm.base.logger.info("'c' key pressed, testing client API")
     dofile("test_client_api.lua")
   end,
 })
@@ -203,7 +203,7 @@ somewm.key({
   description = "test client manipulation",
   group = "clients",
   on_press = function()
-    somewm.foundation.logger.info("'Shift+c' key pressed, testing client manipulation")
+    somewm.base.logger.info("'Shift+c' key pressed, testing client manipulation")
     dofile("test_client_manipulation.lua")
   end,
 })
@@ -215,7 +215,7 @@ somewm.key({
   description = "setup event system tests",
   group = "clients",
   on_press = function()
-    somewm.foundation.logger.info("'e' key pressed, setting up event system tests")
+    somewm.base.logger.info("'e' key pressed, setting up event system tests")
     dofile("test_events.lua")
   end,
 })
@@ -226,7 +226,7 @@ somewm.key({
   description = "enable practical event-based window management",
   group = "clients",
   on_press = function()
-    somewm.foundation.logger.info("'Shift+e' key pressed, enabling practical event-based window management")
+    somewm.base.logger.info("'Shift+e' key pressed, enabling practical event-based window management")
     dofile("practical_event_example.lua")
   end,
 })
@@ -238,7 +238,7 @@ somewm.key({
   description = "test monitor API",
   group = "clients",
   on_press = function()
-    somewm.foundation.logger.info("'m' key pressed, testing monitor API")
+    somewm.base.logger.info("'m' key pressed, testing monitor API")
     dofile("test_monitor_api.lua")
   end,
 })
@@ -249,7 +249,7 @@ somewm.key({
   description = "test monitor management",
   group = "clients",
   on_press = function()
-    somewm.foundation.logger.info("'Shift+m' key pressed, testing monitor management")
+    somewm.base.logger.info("'Shift+m' key pressed, testing monitor management")
     dofile("test_monitor_manipulation.lua")
   end,
 })
@@ -260,7 +260,7 @@ somewm.key({
   description = "test tag API",
   group = "clients",
   on_press = function()
-    somewm.foundation.logger.info("'t' key pressed, testing tag API")
+    somewm.base.logger.info("'t' key pressed, testing tag API")
     dofile("test_tag_api.lua")
   end,
 })
@@ -271,7 +271,7 @@ somewm.key({
   description = "test tag management",
   group = "clients",
   on_press = function()
-    somewm.foundation.logger.info("'Shift+t' key pressed, testing tag management")
+    somewm.base.logger.info("'Shift+t' key pressed, testing tag management")
     dofile("test_tag_manipulation.lua")
   end,
 })
@@ -286,7 +286,7 @@ somewm.key({
     local focused = somewm.get_focused_client()
     if focused then
       focused.fullscreen = not focused.fullscreen
-      somewm.foundation.logger.info("Toggled fullscreen for: " .. (focused.title or "Untitled"))
+      somewm.base.logger.info("Toggled fullscreen for: " .. (focused.title or "Untitled"))
     end
   end,
 })
@@ -300,7 +300,7 @@ somewm.key({
     local focused = somewm.get_focused_client()
     if focused then
       focused.floating = not focused.floating
-      somewm.foundation.logger.info("Toggled floating for: " .. (focused.title or "Untitled"))
+      somewm.base.logger.info("Toggled floating for: " .. (focused.title or "Untitled"))
     end
   end,
 })
@@ -315,7 +315,7 @@ somewm.key({
     if focused then
       local title = focused.title or "Untitled"
       focused:close()
-      somewm.foundation.logger.info("Closed client: " .. title)
+      somewm.base.logger.info("Closed client: " .. title)
     end
   end,
 })
@@ -364,4 +364,4 @@ somewm.key({
 -- Initialize compositor hello world (maintaining compatibility)
 Some.hello_world()
 
-somewm.foundation.logger.info("SomeWM configuration loaded using 3-layer architecture")
+somewm.base.logger.info("SomeWM configuration loaded using 3-layer architecture")
