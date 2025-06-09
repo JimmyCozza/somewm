@@ -1,6 +1,7 @@
 -- wayland_surface.lua
 -- Handles creation and management of Wayland surfaces for widgets
-local logger = require("logger")
+local base = require("base")
+local logger = base.logger
 local lgi = require("lgi")
 local cairo = lgi.cairo
 

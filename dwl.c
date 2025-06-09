@@ -783,9 +783,11 @@ uint32_t lua_get_urgent_tags() {
 /* Note: Layer surfaces should be created by clients, not the compositor.
  * This is a placeholder that spawns a simple wibar client. */
 void *lua_create_layer_surface(int width, int height, int layer, int exclusive_zone, uint32_t anchor) {
-  char cmd[512];
   const char *layer_name;
-  const char *anchor_str;
+  int x, y;
+  struct wlr_scene_tree *target_layer;
+  struct wlr_scene_rect *wibar_rect;
+  struct wlr_scene_rect *border_top;
   
   /* Map layer number to name */
   switch (layer) {
@@ -796,39 +798,64 @@ void *lua_create_layer_surface(int width, int height, int layer, int exclusive_z
     default: layer_name = "top"; break;
   }
   
-  /* Map anchor flags to string */
-  if (anchor & 1) anchor_str = "top";
-  else if (anchor & 2) anchor_str = "bottom";
-  else if (anchor & 4) anchor_str = "left";
-  else if (anchor & 8) anchor_str = "right";
-  else anchor_str = "top";
+  fprintf(stderr, "Creating wibar: %dx%d on %s layer, exclusive=%d\n", 
+          width, height, layer_name, exclusive_zone);
   
-  /* For now, create a simple colored rectangle using wlr-randr or similar */
-  /* This is a temporary solution until we implement a proper wibar client */
-  fprintf(stderr, "Creating temporary wibar simulation: %dx%d on %s layer, exclusive=%d, anchor=%s\n", 
-          width, height, layer_name, exclusive_zone, anchor_str);
-  
-  /* Try to create a simple notification-style display for now */
-  if (exclusive_zone > 0) {
-    snprintf(cmd, sizeof(cmd), 
-      "notify-send -t 10000 'SomeWM Wibar' 'Wibar created: %dx%d on %s layer (exclusive=%d)'",
-      width, height, layer_name, exclusive_zone);
-  } else {
-    snprintf(cmd, sizeof(cmd), 
-      "notify-send -t 5000 'SomeWM Wibar' 'Wibar created: %dx%d on %s layer (non-exclusive)'",
-      width, height, layer_name);
+  /* Create a simple colored rectangle using wlroots scene API */
+  /* This creates a visual wibar at the top of the screen */
+  if (!selmon) {
+    fprintf(stderr, "No monitor selected, cannot create wibar\n");
+    return NULL;
   }
   
-  system(cmd);
+  /* Calculate position based on anchor */
+  x = 0;
+  y = 0;
+  if (anchor & 1) y = 0; /* top */
+  else if (anchor & 2) y = selmon->m.height - height; /* bottom */
   
-  /* Return a dummy pointer to indicate success */
-  return (void *)0x1;
+  /* Adjust width to screen width if full width requested */
+  if (width > selmon->m.width) width = selmon->m.width;
+  
+  /* Create a solid colored rectangle for the wibar */
+  target_layer = layers[layermap[layer]];
+  wibar_rect = wlr_scene_rect_create(target_layer, width, height,
+    (float[4]){0.15f, 0.15f, 0.15f, 0.95f}); /* Dark gray with transparency */
+  
+  if (!wibar_rect) {
+    fprintf(stderr, "Failed to create wibar rectangle\n");
+    return NULL;
+  }
+  
+  /* Position the wibar */
+  wlr_scene_node_set_position(&wibar_rect->node, x, y);
+  wlr_scene_node_set_enabled(&wibar_rect->node, 1);
+  
+  /* Create a border around the wibar */
+  border_top = wlr_scene_rect_create(target_layer, width, 2,
+    (float[4]){0.4f, 0.7f, 1.0f, 1.0f}); /* Blue border */
+  wlr_scene_node_set_position(&border_top->node, x, y);
+  wlr_scene_node_set_enabled(&border_top->node, 1);
+  
+  /* If exclusive zone is set, we should adjust the usable area for tiling */
+  /* This requires more complex integration with dwl's tiling logic */
+  if (exclusive_zone > 0) {
+    fprintf(stderr, "Wibar with exclusive zone created (not fully implemented)\n");
+  }
+  
+  fprintf(stderr, "Wibar rectangle created at %dx%d position (%d,%d)\n", width, height, x, y);
+  
+  /* Return the scene rect as our surface identifier */
+  return (void *)wibar_rect;
 }
 
 void lua_destroy_layer_surface(void *layer_surface_ptr) {
+  struct wlr_scene_rect *wibar_rect;
+  
   if (layer_surface_ptr) {
-    fprintf(stderr, "Destroying wibar simulation\n");
-    /* In a full implementation, this would kill the wibar client process */
+    fprintf(stderr, "Destroying wibar\n");
+    wibar_rect = (struct wlr_scene_rect *)layer_surface_ptr;
+    wlr_scene_node_destroy(&wibar_rect->node);
   }
 }
 

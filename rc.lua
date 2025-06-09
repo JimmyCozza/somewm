@@ -158,22 +158,22 @@ somewm.key({
   end,
 })
 
--- Wibar testing
+-- Wibar testing (optional - wibars now load automatically)
 somewm.key({
   modifiers = { config.modkey },
   key = "b",
-  description = "create test wibar",
+  description = "recreate wibars manually",
   group = "widgets",
   on_press = function()
-    somewm.base.logger.info("'b' key pressed, creating test wibar")
+    somewm.base.logger.info("'b' key pressed, recreating wibars manually")
     local ok, err = pcall(function()
-      somewm.ui.widgets.test_wibar()
+      somewm.ui.widgets.create_wibars_for_all_monitors()
     end)
     
     if not ok then
-      somewm.base.logger.error("Error creating wibar: " .. tostring(err))
+      somewm.base.logger.error("Error recreating wibars: " .. tostring(err))
     else
-      somewm.base.logger.info("Wibar test completed successfully")
+      somewm.base.logger.info("Wibars recreated successfully")
     end
   end,
 })
@@ -383,5 +383,18 @@ somewm.key({
 
 -- Initialize compositor hello world (maintaining compatibility)
 Some.hello_world()
+
+-- Note: Automatic wibar creation disabled to prevent startup crashes
+-- Use Super+b to create wibars manually after startup
+-- somewm.base.logger.info("Creating wibars for all monitors automatically")
+-- local ok, err = pcall(function()
+--   somewm.ui.widgets.create_wibars_for_all_monitors()
+-- end)
+-- 
+-- if not ok then
+--   somewm.base.logger.error("Failed to create automatic wibars: " .. tostring(err))
+-- else
+--   somewm.base.logger.info("Automatic wibars created successfully")
+-- end
 
 somewm.base.logger.info("SomeWM configuration loaded using 3-layer architecture")

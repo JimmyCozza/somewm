@@ -116,6 +116,8 @@ function widgets.create_widget_base()
       self.visible = true
     end
     self:emit_signal("show")
+    -- Ensure we redraw when showing
+    self:_redraw()
   end
   
   function widget:hide()
@@ -419,20 +421,63 @@ function widgets.create_wibar(config)
   end
   
   function wibar:_draw_content()
-    -- This would be where we draw the actual wibar content using Cairo
-    -- For now, we'll just log that we would draw here
+    -- Generate wibar content (time, workspace info, etc.)
+    local content = self:_generate_content()
+    self.text = content
+    
     local bg_color = self:get_private().background_color
     local border_color = self:get_private().border_color
     local border_width = self:get_private().border_width
     
-    base.logger.debug(string.format("Drawing wibar content with bg_color=[%.1f,%.1f,%.1f,%.1f], border_width=%d",
-      bg_color[1], bg_color[2], bg_color[3], bg_color[4], border_width))
+    base.logger.debug(string.format("Drawing wibar content: '%s' with bg_color=[%.1f,%.1f,%.1f,%.1f]",
+      content, bg_color[1], bg_color[2], bg_color[3], bg_color[4]))
+  end
+  
+  function wibar:_generate_content()
+    local content_parts = {}
     
-    -- In a full implementation, this would:
-    -- 1. Get the Cairo context from the layer surface
-    -- 2. Draw background with bg_color
-    -- 3. Draw border with border_color and border_width
-    -- 4. Draw any child widgets/text content
+    -- Add current time
+    local time = os.date("%H:%M:%S")
+    table.insert(content_parts, "Time: " .. time)
+    
+    -- Add workspace/tag info if available
+    if somewm and somewm.get_focused_tag then
+      local focused_tag = somewm.get_focused_tag()
+      if focused_tag then
+        table.insert(content_parts, "Tag: " .. (focused_tag.name or "unknown"))
+      end
+    end
+    
+    -- Add client count if available
+    if somewm and somewm.get_clients then
+      local clients = somewm.get_clients()
+      if clients then
+        table.insert(content_parts, "Clients: " .. #clients)
+      end
+    end
+    
+    return table.concat(content_parts, " | ")
+  end
+  
+  -- Update wibar content periodically
+  function wibar:start_updates()
+    self:set_private("update_enabled", true)
+    self:_schedule_update()
+  end
+  
+  function wibar:stop_updates()
+    self:set_private("update_enabled", false)
+  end
+  
+  function wibar:_schedule_update()
+    -- In a real implementation, this would use a proper timer
+    -- For now, we'll update on the next redraw cycle
+    if self:get_private().update_enabled and self.visible then
+      self:_draw_content()
+      
+      -- Log the updated content
+      base.logger.debug("Wibar content updated: " .. (self.text or ""))
+    end
   end
   
   function wibar:hide()
@@ -471,23 +516,48 @@ function widgets.create_bottom_wibar(config)
   return widgets.create_wibar(config)
 end
 
--- Test wibar functionality
+-- Create wibars for all monitors
+function widgets.create_wibars_for_all_monitors()
+  base.logger.info("== Creating wibars for all monitors ==")
+  
+  -- Get monitor information
+  local monitor_api = require("core.monitor")
+  local monitors = monitor_api.get_all()
+  
+  local wibars = {}
+  
+  for i, monitor in ipairs(monitors) do
+    local geometry = monitor.geometry
+    base.logger.info(string.format("Creating wibar for monitor %d: %dx%d at (%d,%d)", 
+      i, geometry.width, geometry.height, geometry.x, geometry.y))
+    
+    -- Create wibar that spans the full width of this monitor
+    local wibar = widgets.create_top_wibar({
+      width = geometry.width,
+      height = 30,
+      x = geometry.x,
+      y = geometry.y,
+      background_color = {0.15, 0.15, 0.15, 0.95},
+      border_color = {0.4, 0.7, 1.0, 1.0},
+      border_width = 2
+    })
+    
+    -- Start content updates
+    wibar:start_updates()
+    wibar:show()
+    
+    table.insert(wibars, wibar)
+    base.logger.info(string.format("Wibar %d created with content: '%s'", i, wibar.text or ""))
+  end
+  
+  base.logger.info(string.format("== Created %d wibars for %d monitors ==", #wibars, #monitors))
+  return wibars
+end
+
+-- Test wibar functionality (legacy)
 function widgets.test_wibar()
   base.logger.info("== Wibar Test Function Called ==")
-  
-  -- Create a test top wibar
-  local wibar = widgets.create_top_wibar({
-    width = 1920,
-    height = 30,
-    background_color = {0.15, 0.15, 0.15, 0.95},
-    border_color = {0.4, 0.7, 1.0, 1.0},
-    border_width = 2
-  })
-  
-  wibar:show()
-  
-  base.logger.info("== Wibar Test Function Completed ==")
-  return wibar
+  return widgets.create_wibars_for_all_monitors()
 end
 
 return widgets
