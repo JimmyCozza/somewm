@@ -1571,6 +1571,10 @@ void destroylocksurface(struct wl_listener *listener, void *data) {
 void destroynotify(struct wl_listener *listener, void *data) {
   /* Called when the xdg_toplevel is destroyed. */
   Client *c = wl_container_of(listener, c, destroy);
+  
+  /* Notify Lua that this client is being destroyed */
+  lua_client_destroyed(c);
+  
   wl_list_remove(&c->destroy.link);
   wl_list_remove(&c->set_title.link);
   wl_list_remove(&c->fullscreen.link);
@@ -2118,6 +2122,9 @@ unset_fullscreen:
         (w->tags & c->tags))
       setfullscreen(w, 0);
   }
+  
+  /* Register client with Lua tracking system */
+  lua_client_mapped(c);
   
   /* Fire Lua event for client map */
   lua_event_emit(LUA_EVENT_CLIENT_MAP, c, NULL);
