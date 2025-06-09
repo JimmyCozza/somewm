@@ -5,11 +5,109 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <wayland-server-core.h>
 // Cairo header will be included when needed
 
 #include "util.h"
 
 lua_State *L = NULL;
+
+// Event system implementation
+#define MAX_CALLBACKS_PER_EVENT 32
+
+typedef struct {
+    int callback_refs[MAX_CALLBACKS_PER_EVENT];
+    int count;
+} EventCallbackList;
+
+static EventCallbackList event_callbacks[LUA_EVENT_COUNT];
+
+void lua_event_init(void) {
+    for (int i = 0; i < LUA_EVENT_COUNT; i++) {
+        event_callbacks[i].count = 0;
+        for (int j = 0; j < MAX_CALLBACKS_PER_EVENT; j++) {
+            event_callbacks[i].callback_refs[j] = LUA_REFNIL;
+        }
+    }
+}
+
+void lua_event_cleanup(void) {
+    if (!L) return;
+    
+    for (int i = 0; i < LUA_EVENT_COUNT; i++) {
+        for (int j = 0; j < event_callbacks[i].count; j++) {
+            if (event_callbacks[i].callback_refs[j] != LUA_REFNIL) {
+                luaL_unref(L, LUA_REGISTRYINDEX, event_callbacks[i].callback_refs[j]);
+                event_callbacks[i].callback_refs[j] = LUA_REFNIL;
+            }
+        }
+        event_callbacks[i].count = 0;
+    }
+}
+
+int lua_event_connect(LuaEventType event_type, int callback_ref) {
+    if (event_type >= LUA_EVENT_COUNT || event_callbacks[event_type].count >= MAX_CALLBACKS_PER_EVENT) {
+        return -1;
+    }
+    
+    int index = event_callbacks[event_type].count;
+    event_callbacks[event_type].callback_refs[index] = callback_ref;
+    event_callbacks[event_type].count++;
+    return index;
+}
+
+void lua_event_disconnect(LuaEventType event_type, int callback_ref) {
+    if (event_type >= LUA_EVENT_COUNT || !L) return;
+    
+    EventCallbackList *list = &event_callbacks[event_type];
+    for (int i = 0; i < list->count; i++) {
+        if (list->callback_refs[i] == callback_ref) {
+            luaL_unref(L, LUA_REGISTRYINDEX, callback_ref);
+            // Shift remaining callbacks down
+            for (int j = i; j < list->count - 1; j++) {
+                list->callback_refs[j] = list->callback_refs[j + 1];
+            }
+            list->callback_refs[list->count - 1] = LUA_REFNIL;
+            list->count--;
+            break;
+        }
+    }
+}
+
+void lua_event_emit(LuaEventType event_type, void *client, void *data) {
+    if (event_type >= LUA_EVENT_COUNT || !L) return;
+    
+    EventCallbackList *list = &event_callbacks[event_type];
+    for (int i = 0; i < list->count; i++) {
+        if (list->callback_refs[i] != LUA_REFNIL) {
+            // Get the callback function from registry
+            lua_rawgeti(L, LUA_REGISTRYINDEX, list->callback_refs[i]);
+            
+            // Push client as first argument (or nil if no client)
+            if (client) {
+                lua_pushlightuserdata(L, client);
+            } else {
+                lua_pushnil(L);
+            }
+            
+            // Push event-specific data as second argument (or nil)
+            if (data) {
+                // For now, we'll pass simple data types
+                // This can be expanded later based on event needs
+                lua_pushlightuserdata(L, data);
+            } else {
+                lua_pushnil(L);
+            }
+            
+            // Call the callback function
+            if (lua_pcall(L, 2, 0, 0) != LUA_OK) {
+                const char *error = lua_tostring(L, -1);
+                fprintf(stderr, "Error in event callback: %s\n", error);
+                lua_pop(L, 1);
+            }
+        }
+    }
+}
 
 static int l_hello_world(lua_State *lua) {
   printf("Hello, world!\n");
@@ -227,6 +325,405 @@ static int l_destroy_widget(lua_State *L) {
   return 0;
 }
 
+// Client wrapper functions are now declared in luaa.h
+
+// Client API functions
+static int l_client_get_all(lua_State *L) {
+  int count = lua_get_client_count();
+  lua_newtable(L);
+  
+  for (int i = 0; i < count; i++) {
+    void *c = lua_get_client_by_index(i);
+    if (c) {
+      lua_pushlightuserdata(L, c);
+      lua_rawseti(L, -2, i + 1);  // Lua arrays are 1-indexed
+    }
+  }
+  
+  return 1;
+}
+
+static int l_client_get_focused(lua_State *L) {
+  void *c = lua_get_focused_client();
+  if (c) {
+    lua_pushlightuserdata(L, c);
+  } else {
+    lua_pushnil(L);
+  }
+  return 1;
+}
+
+static int l_client_get_title(lua_State *L) {
+  void *c = lua_touserdata(L, 1);
+  const char *title = lua_get_client_title(c);
+  if (title) {
+    lua_pushstring(L, title);
+  } else {
+    lua_pushnil(L);
+  }
+  return 1;
+}
+
+static int l_client_get_appid(lua_State *L) {
+  void *c = lua_touserdata(L, 1);
+  const char *appid = lua_get_client_appid(c);
+  if (appid) {
+    lua_pushstring(L, appid);
+  } else {
+    lua_pushnil(L);
+  }
+  return 1;
+}
+
+static int l_client_get_pid(lua_State *L) {
+  void *c = lua_touserdata(L, 1);
+  int pid = lua_get_client_pid(c);
+  if (pid > 0) {
+    lua_pushinteger(L, pid);
+  } else {
+    lua_pushnil(L);
+  }
+  return 1;
+}
+
+static int l_client_kill(lua_State *L) {
+  void *c = lua_touserdata(L, 1);
+  lua_kill_client(c);
+  return 0;
+}
+
+static int l_client_get_geometry(lua_State *L) {
+  void *c = lua_touserdata(L, 1);
+  int x, y, w, h;
+  lua_get_client_geometry(c, &x, &y, &w, &h);
+  
+  lua_newtable(L);
+  lua_pushinteger(L, x);
+  lua_setfield(L, -2, "x");
+  lua_pushinteger(L, y);
+  lua_setfield(L, -2, "y");
+  lua_pushinteger(L, w);
+  lua_setfield(L, -2, "width");
+  lua_pushinteger(L, h);
+  lua_setfield(L, -2, "height");
+  
+  return 1;
+}
+
+static int l_client_get_tags(lua_State *L) {
+  void *c = lua_touserdata(L, 1);
+  uint32_t tags = lua_get_client_tags(c);
+  lua_pushinteger(L, tags);
+  return 1;
+}
+
+static int l_client_get_floating(lua_State *L) {
+  void *c = lua_touserdata(L, 1);
+  int floating = lua_get_client_floating(c);
+  lua_pushboolean(L, floating);
+  return 1;
+}
+
+static int l_client_get_fullscreen(lua_State *L) {
+  void *c = lua_touserdata(L, 1);
+  int fullscreen = lua_get_client_fullscreen(c);
+  lua_pushboolean(L, fullscreen);
+  return 1;
+}
+
+// Client manipulation functions
+static int l_client_focus(lua_State *L) {
+  void *c = lua_touserdata(L, 1);
+  lua_client_focus(c);
+  return 0;
+}
+
+static int l_client_close(lua_State *L) {
+  void *c = lua_touserdata(L, 1);
+  lua_client_close(c);
+  return 0;
+}
+
+static int l_client_set_floating(lua_State *L) {
+  void *c = lua_touserdata(L, 1);
+  int floating = lua_toboolean(L, 2);
+  lua_client_set_floating(c, floating);
+  return 0;
+}
+
+static int l_client_set_fullscreen(lua_State *L) {
+  void *c = lua_touserdata(L, 1);
+  int fullscreen = lua_toboolean(L, 2);
+  lua_client_set_fullscreen(c, fullscreen);
+  return 0;
+}
+
+static int l_client_set_geometry(lua_State *L) {
+  void *c = lua_touserdata(L, 1);
+  int x = luaL_checkinteger(L, 2);
+  int y = luaL_checkinteger(L, 3);
+  int w = luaL_checkinteger(L, 4);
+  int h = luaL_checkinteger(L, 5);
+  lua_client_set_geometry(c, x, y, w, h);
+  return 0;
+}
+
+static int l_client_set_tags(lua_State *L) {
+  void *c = lua_touserdata(L, 1);
+  uint32_t tags = luaL_checkinteger(L, 2);
+  lua_client_set_tags(c, tags);
+  return 0;
+}
+
+// Event system Lua bridge functions
+static int l_client_connect_signal(lua_State *L) {
+  const char *signal_name = luaL_checkstring(L, 1);
+  luaL_checktype(L, 2, LUA_TFUNCTION);
+  
+  // Map signal names to event types
+  LuaEventType event_type;
+  if (strcmp(signal_name, "map") == 0) {
+    event_type = LUA_EVENT_CLIENT_MAP;
+  } else if (strcmp(signal_name, "unmap") == 0) {
+    event_type = LUA_EVENT_CLIENT_UNMAP;
+  } else if (strcmp(signal_name, "focus") == 0) {
+    event_type = LUA_EVENT_CLIENT_FOCUS;
+  } else if (strcmp(signal_name, "unfocus") == 0) {
+    event_type = LUA_EVENT_CLIENT_UNFOCUS;
+  } else if (strcmp(signal_name, "title_change") == 0) {
+    event_type = LUA_EVENT_CLIENT_TITLE_CHANGE;
+  } else if (strcmp(signal_name, "fullscreen") == 0) {
+    event_type = LUA_EVENT_CLIENT_FULLSCREEN;
+  } else if (strcmp(signal_name, "floating") == 0) {
+    event_type = LUA_EVENT_CLIENT_FLOATING;
+  } else {
+    lua_pushstring(L, "Unknown signal name");
+    lua_error(L);
+    return 0;
+  }
+  
+  // Store the callback function in the registry
+  lua_pushvalue(L, 2);  // Copy the function to top of stack
+  int callback_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+  
+  // Connect the callback
+  int result = lua_event_connect(event_type, callback_ref);
+  if (result < 0) {
+    luaL_unref(L, LUA_REGISTRYINDEX, callback_ref);
+    lua_pushstring(L, "Failed to connect signal - too many callbacks");
+    lua_error(L);
+    return 0;
+  }
+  
+  return 0;
+}
+
+static int l_client_disconnect_signal(lua_State *L) {
+  const char *signal_name = luaL_checkstring(L, 1);
+  int callback_ref = luaL_checkinteger(L, 2);
+  
+  // Map signal names to event types (same as above)
+  LuaEventType event_type;
+  if (strcmp(signal_name, "map") == 0) {
+    event_type = LUA_EVENT_CLIENT_MAP;
+  } else if (strcmp(signal_name, "unmap") == 0) {
+    event_type = LUA_EVENT_CLIENT_UNMAP;
+  } else if (strcmp(signal_name, "focus") == 0) {
+    event_type = LUA_EVENT_CLIENT_FOCUS;
+  } else if (strcmp(signal_name, "unfocus") == 0) {
+    event_type = LUA_EVENT_CLIENT_UNFOCUS;
+  } else if (strcmp(signal_name, "title_change") == 0) {
+    event_type = LUA_EVENT_CLIENT_TITLE_CHANGE;
+  } else if (strcmp(signal_name, "fullscreen") == 0) {
+    event_type = LUA_EVENT_CLIENT_FULLSCREEN;
+  } else if (strcmp(signal_name, "floating") == 0) {
+    event_type = LUA_EVENT_CLIENT_FLOATING;
+  } else {
+    lua_pushstring(L, "Unknown signal name");
+    lua_error(L);
+    return 0;
+  }
+  
+  lua_event_disconnect(event_type, callback_ref);
+  return 0;
+}
+
+// Monitor API bridge functions
+static int l_monitor_get_all(lua_State *L) {
+  int count = lua_get_monitor_count();
+  lua_newtable(L);
+  
+  for (int i = 0; i < count; i++) {
+    void *m = lua_get_monitor_by_index(i);
+    if (m) {
+      lua_pushlightuserdata(L, m);
+      lua_rawseti(L, -2, i + 1);
+    }
+  }
+  
+  return 1;
+}
+
+static int l_monitor_get_focused(lua_State *L) {
+  void *m = lua_get_focused_monitor();
+  if (m) {
+    lua_pushlightuserdata(L, m);
+  } else {
+    lua_pushnil(L);
+  }
+  return 1;
+}
+
+static int l_monitor_get_name(lua_State *L) {
+  void *m = lua_touserdata(L, 1);
+  const char *name = lua_get_monitor_name(m);
+  if (name) {
+    lua_pushstring(L, name);
+  } else {
+    lua_pushnil(L);
+  }
+  return 1;
+}
+
+static int l_monitor_get_geometry(lua_State *L) {
+  void *m = lua_touserdata(L, 1);
+  int x, y, w, h;
+  lua_get_monitor_geometry(m, &x, &y, &w, &h);
+  
+  lua_newtable(L);
+  lua_pushinteger(L, x);
+  lua_setfield(L, -2, "x");
+  lua_pushinteger(L, y);
+  lua_setfield(L, -2, "y");
+  lua_pushinteger(L, w);
+  lua_setfield(L, -2, "width");
+  lua_pushinteger(L, h);
+  lua_setfield(L, -2, "height");
+  
+  return 1;
+}
+
+static int l_monitor_get_workarea(lua_State *L) {
+  void *m = lua_touserdata(L, 1);
+  int x, y, w, h;
+  lua_get_monitor_workarea(m, &x, &y, &w, &h);
+  
+  lua_newtable(L);
+  lua_pushinteger(L, x);
+  lua_setfield(L, -2, "x");
+  lua_pushinteger(L, y);
+  lua_setfield(L, -2, "y");
+  lua_pushinteger(L, w);
+  lua_setfield(L, -2, "width");
+  lua_pushinteger(L, h);
+  lua_setfield(L, -2, "height");
+  
+  return 1;
+}
+
+static int l_monitor_get_layout_symbol(lua_State *L) {
+  void *m = lua_touserdata(L, 1);
+  const char *symbol = lua_get_monitor_layout_symbol(m);
+  if (symbol) {
+    lua_pushstring(L, symbol);
+  } else {
+    lua_pushnil(L);
+  }
+  return 1;
+}
+
+static int l_monitor_get_master_factor(lua_State *L) {
+  void *m = lua_touserdata(L, 1);
+  float factor = lua_get_monitor_master_factor(m);
+  lua_pushnumber(L, factor);
+  return 1;
+}
+
+static int l_monitor_get_master_count(lua_State *L) {
+  void *m = lua_touserdata(L, 1);
+  int count = lua_get_monitor_master_count(m);
+  lua_pushinteger(L, count);
+  return 1;
+}
+
+static int l_monitor_get_tags(lua_State *L) {
+  void *m = lua_touserdata(L, 1);
+  uint32_t tags = lua_get_monitor_tags(m);
+  lua_pushinteger(L, tags);
+  return 1;
+}
+
+static int l_monitor_get_enabled(lua_State *L) {
+  void *m = lua_touserdata(L, 1);
+  int enabled = lua_get_monitor_enabled(m);
+  lua_pushboolean(L, enabled);
+  return 1;
+}
+
+static int l_monitor_focus(lua_State *L) {
+  void *m = lua_touserdata(L, 1);
+  lua_focus_monitor(m);
+  return 0;
+}
+
+static int l_monitor_set_tags(lua_State *L) {
+  void *m = lua_touserdata(L, 1);
+  uint32_t tags = luaL_checkinteger(L, 2);
+  lua_set_monitor_tags(m, tags);
+  return 0;
+}
+
+static int l_monitor_set_master_factor(lua_State *L) {
+  void *m = lua_touserdata(L, 1);
+  float factor = luaL_checknumber(L, 2);
+  lua_set_monitor_master_factor(m, factor);
+  return 0;
+}
+
+static int l_monitor_set_master_count(lua_State *L) {
+  void *m = lua_touserdata(L, 1);
+  int count = luaL_checkinteger(L, 2);
+  lua_set_monitor_master_count(m, count);
+  return 0;
+}
+
+// Tag API bridge functions
+static int l_tag_get_count(lua_State *L) {
+  int count = lua_get_tag_count();
+  lua_pushinteger(L, count);
+  return 1;
+}
+
+static int l_tag_get_current(lua_State *L) {
+  uint32_t tags = lua_get_current_tags();
+  lua_pushinteger(L, tags);
+  return 1;
+}
+
+static int l_tag_set_current(lua_State *L) {
+  uint32_t tags = luaL_checkinteger(L, 1);
+  lua_set_current_tags(tags);
+  return 0;
+}
+
+static int l_tag_toggle_view(lua_State *L) {
+  uint32_t tags = luaL_checkinteger(L, 1);
+  lua_toggle_tag_view(tags);
+  return 0;
+}
+
+static int l_tag_get_occupied(lua_State *L) {
+  uint32_t occupied = lua_get_occupied_tags();
+  lua_pushinteger(L, occupied);
+  return 1;
+}
+
+static int l_tag_get_urgent(lua_State *L) {
+  uint32_t urgent = lua_get_urgent_tags();
+  lua_pushinteger(L, urgent);
+  return 1;
+}
+
 static const struct luaL_Reg somelib[] = {{"hello_world", l_hello_world},
                                           {"spawn", l_spawn},
                                           {"restart", l_restart},
@@ -236,6 +733,46 @@ static const struct luaL_Reg somelib[] = {{"hello_world", l_hello_world},
                                           {"destroy_widget", l_destroy_widget},
                                           {"create_widget", l_create_notification},
                                           {"log", l_log},
+                                          {"client_get_all", l_client_get_all},
+                                          {"client_get_focused", l_client_get_focused},
+                                          {"client_get_title", l_client_get_title},
+                                          {"client_get_appid", l_client_get_appid},
+                                          {"client_get_pid", l_client_get_pid},
+                                          {"client_get_geometry", l_client_get_geometry},
+                                          {"client_get_tags", l_client_get_tags},
+                                          {"client_get_floating", l_client_get_floating},
+                                          {"client_get_fullscreen", l_client_get_fullscreen},
+                                          {"client_focus", l_client_focus},
+                                          {"client_close", l_client_close},
+                                          {"client_kill", l_client_kill},
+                                          {"client_set_floating", l_client_set_floating},
+                                          {"client_set_fullscreen", l_client_set_fullscreen},
+                                          {"client_set_geometry", l_client_set_geometry},
+                                          {"client_set_tags", l_client_set_tags},
+                                          {"client_connect_signal", l_client_connect_signal},
+                                          {"client_disconnect_signal", l_client_disconnect_signal},
+                                          // Monitor API
+                                          {"monitor_get_all", l_monitor_get_all},
+                                          {"monitor_get_focused", l_monitor_get_focused},
+                                          {"monitor_get_name", l_monitor_get_name},
+                                          {"monitor_get_geometry", l_monitor_get_geometry},
+                                          {"monitor_get_workarea", l_monitor_get_workarea},
+                                          {"monitor_get_layout_symbol", l_monitor_get_layout_symbol},
+                                          {"monitor_get_master_factor", l_monitor_get_master_factor},
+                                          {"monitor_get_master_count", l_monitor_get_master_count},
+                                          {"monitor_get_tags", l_monitor_get_tags},
+                                          {"monitor_get_enabled", l_monitor_get_enabled},
+                                          {"monitor_focus", l_monitor_focus},
+                                          {"monitor_set_tags", l_monitor_set_tags},
+                                          {"monitor_set_master_factor", l_monitor_set_master_factor},
+                                          {"monitor_set_master_count", l_monitor_set_master_count},
+                                          // Tag API
+                                          {"tag_get_count", l_tag_get_count},
+                                          {"tag_get_current", l_tag_get_current},
+                                          {"tag_set_current", l_tag_set_current},
+                                          {"tag_toggle_view", l_tag_toggle_view},
+                                          {"tag_get_occupied", l_tag_get_occupied},
+                                          {"tag_get_urgent", l_tag_get_urgent},
                                           {NULL, NULL}};
 
 static int luaopen_some(lua_State *lua) {
@@ -298,6 +835,8 @@ int get_config_bool(const char *key, int default_value) {
 
 void cleanup_lua(void) {
   if (L != NULL) {
+    // Cleanup event system before closing Lua state
+    lua_event_cleanup();
     lua_close(L);
     L = NULL;
   }
@@ -394,6 +933,9 @@ void init_lua(void) {
   }
 
   luaL_openlibs(L);
+  
+  // Initialize event system
+  lua_event_init();
 
   if (set_lua_path(L, lua_path)) {
     fprintf(stderr, "Failed to set lua path, exiting\n");
