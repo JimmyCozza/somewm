@@ -143,16 +143,16 @@ end)
 - [x] Migrate `lua/logger.lua` → `lua/foundation/logger.lua`
 - [x] Create `lua/foundation/init.lua` exporting all modules
 
-### Phase 3: Core Layer Migration (inspired by awful/)
-- [ ] Create `lua/core/` directory structure
-- [ ] Migrate `lua/client.lua` → `lua/core/client.lua`
-  - [ ] Use foundation.object as base class
-  - [ ] Implement property access pattern
-  - [ ] Abstract away direct `Some.*` calls
-- [ ] Migrate `lua/monitor.lua` → `lua/core/monitor.lua`
-- [ ] Migrate `lua/tag.lua` → `lua/core/tag.lua`
-- [ ] Implement `lua/core/rules.lua` - declarative window rules
-- [ ] Create `lua/core/init.lua` exporting all modules
+### Phase 3: Core Layer Migration (inspired by awful/) ✅ COMPLETED
+- [x] Create `lua/core/` directory structure
+- [x] Migrate `lua/client.lua` → `lua/core/client.lua`
+  - [x] Use foundation.object as base class
+  - [x] Implement property access pattern
+  - [x] Abstract away direct `Some.*` calls
+- [x] Migrate `lua/monitor.lua` → `lua/core/monitor.lua`
+- [x] Migrate `lua/tag.lua` → `lua/core/tag.lua`
+- [x] Implement `lua/core/rules.lua` - declarative window rules
+- [x] Create `lua/core/init.lua` exporting all modules
 
 ### Phase 4: UI/Automation Layer (inspired by wibox/ruled/)
 - [ ] Create `lua/ui/` directory structure
@@ -259,9 +259,9 @@ end)
 
 ## Progress Tracking
 
-**Current Status**: Phase 2 Complete ✅
+**Current Status**: Phase 3 Complete ✅
 
-**Next Milestone**: Complete Phase 3 (Core Layer Migration)
+**Next Milestone**: Complete Phase 4 (UI/Automation Layer)
 
 **Estimated Timeline**: 
 - Phase 2 (Foundation): 2-3 days
