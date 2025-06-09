@@ -12,8 +12,10 @@ This document outlines the plan to restructure SomeWM into a clean 3-layer archi
 - ✅ **Foundation object system** with signals and property access
 - ✅ **Lazy loading** prevents circular dependencies
 - ✅ **Backward compatibility** maintained for existing awful.key usage
-- ❌ `rc.lua` still mixes user configuration with library-level functionality
-- ❌ Legacy files still exist alongside new architecture
+- ✅ **Clean user configuration**: `rc.lua` now uses unified 3-layer API
+- ✅ **Backward compatibility**: Legacy code works during migration
+- ✅ **Example configurations**: Multiple patterns for different use cases
+- ❌ Legacy files still exist alongside new architecture (for compatibility)
 
 ### Current File Structure
 ```
@@ -38,12 +40,19 @@ lua/
 ├── awful/           -- ✅ Backward compatibility layer
 │   ├── init.lua
 │   └── key.lua       -- Forwards to ui.keybindings
+├── somewm.lua       -- ✅ Unified entry point
+├── compat.lua       -- ✅ Backward compatibility layer
 ├── client.lua       -- ❌ LEGACY - use core.client
 ├── monitor.lua      -- ❌ LEGACY - use core.monitor  
 ├── tag.lua          -- ❌ LEGACY - use core.tag
 └── widgets.lua      -- ❌ LEGACY - use ui.widgets
 
-rc.lua               -- User config + library calls mixed
+rc.lua               -- ✅ Clean user config using 3-layer API
+examples/            -- ✅ Example configurations
+├── rc-minimal.lua   -- Basic setup
+├── rc-advanced.lua  -- Full features  
+├── rc-migration.lua -- Migration guide
+└── README.md        -- Documentation
 ```
 
 ## Target Architecture
@@ -197,12 +206,33 @@ end)
   - [x] Convenience functions
   - [x] Auto-initialization
 
-### Phase 5: Configuration Cleanup
-- [ ] Create unified `lua/somewm.lua` entry point
-- [ ] Refactor `rc.lua` to use new 3-layer API
-- [ ] Remove direct `Some.*` calls from user config
-- [ ] Implement backward compatibility shims
-- [ ] Create example configurations using new API
+### Phase 5: Configuration Cleanup ✅ COMPLETED
+- [x] Create unified `lua/somewm.lua` entry point
+  - [x] Unified interface exporting foundation/core/ui
+  - [x] Convenience functions for common operations
+  - [x] Configuration helpers and initialization
+  - [x] Backward compatibility layer integration
+- [x] Refactor `rc.lua` to use new 3-layer API
+  - [x] Replace all direct `Some.*` calls with proper abstractions
+  - [x] Use property access patterns for clients
+  - [x] Implement declarative window rules
+  - [x] Use new keybinding and widget systems
+- [x] Remove direct `Some.*` calls from user config
+  - [x] All `Some.spawn()` → `somewm.spawn()`
+  - [x] All `Some.quit()` → `somewm.quit()`
+  - [x] Client manipulation via property access
+  - [x] Widget creation via unified API
+- [x] Implement backward compatibility shims
+  - [x] Legacy `require("client")` compatibility
+  - [x] Legacy `require("widgets")` compatibility
+  - [x] Legacy `require("logger")` compatibility
+  - [x] Legacy `Some.*` function wrapping
+  - [x] Migration testing utilities
+- [x] Create example configurations using new API
+  - [x] `examples/rc-minimal.lua` - Basic setup
+  - [x] `examples/rc-advanced.lua` - Full features
+  - [x] `examples/rc-migration.lua` - Migration guide
+  - [x] `examples/README.md` - Documentation
 
 ### Phase 6: Advanced Features (inspired by AwesomeWM)
 - [ ] Implement reference counting for C object lifetime management
@@ -292,19 +322,19 @@ end)
 
 ## Progress Tracking
 
-**Current Status**: Phase 4 Complete ✅
+**Current Status**: Phase 5 Complete ✅
 
-**Next Milestone**: Complete Phase 5 (Configuration Cleanup)
+**Next Milestone**: Complete Phase 6 (Advanced Features)
 
 **Completed Timeline**: 
 - Phase 2 (Foundation): ✅ 3 days
 - Phase 3 (Core): ✅ 4 days  
 - Phase 4 (UI): ✅ 2 days
-- Phase 5 (Config): 1-2 days remaining
+- Phase 5 (Config): ✅ 1 day
 - Phase 6 (Advanced): 4-5 days remaining
 - Phase 7 (Testing): 3-4 days remaining
 
-**Progress**: 9/21 days completed (43% done)
+**Progress**: 10/21 days completed (48% done)
 
 ## AwesomeWM Architecture Insights Applied
 
@@ -323,4 +353,4 @@ AwesomeWM's architecture has proven stable for 10+ years in production, providin
 ---
 
 *Last Updated: 2025-06-09*
-*Document Version: 1.1 - Phase 4 Complete*
+*Document Version: 1.2 - Phase 5 Complete*

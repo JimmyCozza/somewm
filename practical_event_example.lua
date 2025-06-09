@@ -1,42 +1,43 @@
 -- Practical Example: Advanced Window Management with Events
-local logger = require("logger")
-local client = require("client")
+local somewm = require("somewm")
+local logger = somewm.foundation.logger
+local client = somewm.core.client
 
 logger.info("Setting up practical event-based window management...")
 
 -- Example 1: Auto-float certain applications
 client.on_map(function(c, data)
-  local appid = client.get_appid(c)
-  local title = client.get_title(c)
+  local appid = c.appid
+  local title = c.title
   
   -- Auto-float dialog windows, calculator, etc.
   if appid and (appid:match("calculator") or appid:match("dialog") or 
                 appid:match("popup") or appid:match("menu")) then
-    client.set_floating(c, true)
+    c.floating = true
     logger.info("Auto-floated application: " .. appid)
   end
   
   -- Auto-float windows with certain titles
   if title and (title:match("Preferences") or title:match("Settings") or
                 title:match("Configure") or title:match("Properties")) then
-    client.set_floating(c, true)
+    c.floating = true
     logger.info("Auto-floated window by title: " .. title)
   end
 end)
 
 -- Example 2: Smart positioning for new floating windows
 client.on_floating(function(c, data)
-  if client.is_floating(c) then
+  if c.floating then
     -- Center floating windows on screen
-    local geometry = client.get_geometry(c)
+    local geometry = c.geometry
     local screen_width = 1920  -- Could get from monitor API later
     local screen_height = 1080
     
     local new_x = (screen_width - geometry.width) / 2
     local new_y = (screen_height - geometry.height) / 2
     
-    client.move(c, new_x, new_y)
-    logger.info("Centered floating window: " .. (client.get_title(c) or "Untitled"))
+    c.geometry = {x = new_x, y = new_y, width = geometry.width, height = geometry.height}
+    logger.info("Centered floating window: " .. (c.title or "Untitled"))
   end
 end)
 
@@ -44,8 +45,8 @@ end)
 local focus_log = {}
 
 client.on_focus(function(c, data)
-  local appid = client.get_appid(c) or "unknown"
-  local title = client.get_title(c) or "Untitled"
+  local appid = c.appid or "unknown"
+  local title = c.title or "Untitled"
   local timestamp = os.time()
   
   table.insert(focus_log, {
@@ -60,24 +61,24 @@ end)
 
 -- Example 4: Automatic workspace assignment based on application
 client.on_map(function(c, data)
-  local appid = client.get_appid(c)
+  local appid = c.appid
   
   if appid then
     -- Web browsers go to tag 2
     if appid:match("firefox") or appid:match("chromium") or appid:match("browser") then
-      client.set_tags(c, 2)
+      c.tags = 2
       logger.info("Auto-assigned " .. appid .. " to workspace 2")
     
     -- Development tools go to tag 3
     elseif appid:match("code") or appid:match("vim") or appid:match("emacs") or 
            appid:match("editor") or appid:match("terminal") then
-      client.set_tags(c, 3)
+      c.tags = 3
       logger.info("Auto-assigned " .. appid .. " to workspace 3")
     
     -- Media applications go to tag 4
     elseif appid:match("media") or appid:match("video") or appid:match("audio") or
            appid:match("vlc") or appid:match("player") then
-      client.set_tags(c, 4)
+      c.tags = 4
       logger.info("Auto-assigned " .. appid .. " to workspace 4")
     end
   end
@@ -85,8 +86,8 @@ end)
 
 -- Example 5: Title change monitoring for specific applications
 client.on_title_change(function(c, data)
-  local appid = client.get_appid(c)
-  local title = client.get_title(c)
+  local appid = c.appid
+  local title = c.title
   
   -- Monitor web browser tabs
   if appid and appid:match("firefox") and title then
@@ -103,12 +104,12 @@ end)
 
 -- Example 6: Prevent accidental fullscreen for certain apps
 client.on_fullscreen(function(c, data)
-  local appid = client.get_appid(c)
+  local appid = c.appid
   
   -- Don't allow fullscreen for calculator or small utility apps
   if appid and (appid:match("calculator") or appid:match("clock") or 
-                appid:match("timer")) and client.is_fullscreen(c) then
-    client.set_fullscreen(c, false)
+                appid:match("timer")) and c.fullscreen then
+    c.fullscreen = false
     logger.info("Prevented fullscreen for utility app: " .. appid)
   end
 end)
