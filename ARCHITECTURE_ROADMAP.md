@@ -1,0 +1,293 @@
+# SomeWM 3-Layer Architecture Roadmap
+
+## Overview
+
+This document outlines the plan to restructure SomeWM into a clean 3-layer architecture that separates core compositor functionality, library APIs, and user configuration.
+
+## Current State Analysis
+
+### Existing Architecture Issues
+- ❌ Direct `Some.*` API calls scattered across Lua files
+- ❌ `rc.lua` mixes user configuration with library-level functionality
+- ❌ No clear abstraction between compositor core and library
+- ❌ Raw C function exposure in high-level APIs
+- ❌ Tight coupling between user config and internal APIs
+
+### Current File Structure
+```
+lua/
+├── client.lua        -- Exposes Some.* directly
+├── monitor.lua       -- Exposes Some.* directly  
+├── tag.lua           -- Exposes Some.* directly
+├── widgets.lua       -- Mixed concerns
+├── awful/            -- Partially implemented
+└── logger.lua        -- Utility
+
+rc.lua                -- User config + library calls mixed
+```
+
+## Target Architecture
+
+### Layer 1: C Core (`dwl.c`, `luaa.c`)
+**Responsibility**: Raw Wayland compositor, memory management, core protocols
+
+**Principles**:
+- Minimal, stable API focused on core primitives
+- Direct wlroots/Wayland protocol implementation
+- Memory-safe wrapper functions with `lua_*` prefix
+- No high-level convenience functions
+- Type-safe void* pointer abstraction
+
+**Functions to Keep**:
+- Essential client manipulation (`lua_client_focus`, `lua_client_close`)
+- Core data access (`lua_client_get_title`, `lua_client_get_geometry`)
+- Event system registration (`lua_event_connect`)
+- Process spawning (`lua_spawn`)
+- Basic tag operations
+
+### Layer 2: SomeWM Lua Library 
+**Responsibility**: Complete compositor control API, all abstractions
+
+Based on AwesomeWM's proven architecture, SomeWM will use a 3-sublayer approach:
+
+#### **Foundation Layer (`lua/foundation/`)**
+Core utilities and base systems (inspired by AwesomeWM's `gears/`)
+```
+lua/foundation/
+├── init.lua          -- Export all foundation modules
+├── object.lua        -- Base object system with signals/properties
+├── geometry.lua      -- Rectangle/position utilities  
+├── signal.lua        -- Event system core
+├── timer.lua         -- Event scheduling system
+└── logger.lua        -- Centralized logging
+```
+
+#### **Core Layer (`lua/core/`)**  
+Window manager functionality (inspired by AwesomeWM's `awful/`)
+```
+lua/core/
+├── init.lua          -- Export all core modules
+├── client.lua        -- High-level client API
+├── monitor.lua       -- Display management
+├── tag.lua           -- Workspace management
+└── rules.lua         -- Declarative window rules
+```
+
+#### **UI/Automation Layer (`lua/ui/`)**
+User interface and automation (inspired by AwesomeWM's `wibox/` and `ruled/`)
+```
+lua/ui/
+├── init.lua          -- Export all UI modules
+├── widgets.lua       -- Widget creation and management
+├── automation.lua    -- Smart window behaviors
+└── keybindings.lua   -- Input handling
+```
+
+**API Design Principles** (based on AwesomeWM patterns):
+- **Init.lua pattern**: Every module exports submodules via consistent init.lua
+- **Property access**: Automatic getter/setter with `obj.property` syntax  
+- **Signal-based events**: Observer pattern for all lifecycle events
+- **Lazy loading**: Metatables prevent circular dependencies
+- **Reference counting**: Proper C object lifetime management
+- **Naming conventions**: `verb_noun` for functions, direct access for properties
+- **Rule-based config**: Declarative window automation like `ruled.client`
+
+### Layer 3: User Configuration (`rc.lua` ecosystem)
+**Responsibility**: User-specific configuration, imports somewm library
+
+**Structure** (following AwesomeWM patterns):
+```lua
+-- Import the 3-layer library
+local foundation = require("foundation")
+local core = require("core") 
+local ui = require("ui")
+
+-- Or import the unified interface
+local somewm = require("somewm") -- exports foundation + core + ui
+
+-- Pure user configuration  
+local config = {
+  terminal = "wezterm",
+  modkey = "Mod4",
+}
+
+-- Declarative window rules (like ruled.client)
+core.rules.add {
+  rule = { class = "Firefox" },
+  properties = { tag = "web", floating = false }
+}
+
+-- Property-based client handling
+core.client.connect_signal("request::activate", function(c)
+  c.urgent = false  -- Direct property access
+end)
+
+-- Keybindings using foundation timer + core spawn
+ui.keybindings.add(config.modkey, "Return", function()
+  core.spawn(config.terminal)
+end)
+```
+
+## Migration Plan
+
+### Phase 1: Foundation ✅ COMPLETED
+- [x] Analyze current architecture
+- [x] Design 3-layer separation
+- [x] Create roadmap document
+
+### Phase 2: Foundation Layer (inspired by gears/) ✅ COMPLETED
+- [x] Create `lua/foundation/` directory structure
+- [x] Implement `lua/foundation/object.lua` - base object system with signals
+- [x] Implement `lua/foundation/geometry.lua` - rectangle/position utilities
+- [x] Implement `lua/foundation/signal.lua` - event system core
+- [x] Migrate `lua/logger.lua` → `lua/foundation/logger.lua`
+- [x] Create `lua/foundation/init.lua` exporting all modules
+
+### Phase 3: Core Layer Migration (inspired by awful/)
+- [ ] Create `lua/core/` directory structure
+- [ ] Migrate `lua/client.lua` → `lua/core/client.lua`
+  - [ ] Use foundation.object as base class
+  - [ ] Implement property access pattern
+  - [ ] Abstract away direct `Some.*` calls
+- [ ] Migrate `lua/monitor.lua` → `lua/core/monitor.lua`
+- [ ] Migrate `lua/tag.lua` → `lua/core/tag.lua`
+- [ ] Implement `lua/core/rules.lua` - declarative window rules
+- [ ] Create `lua/core/init.lua` exporting all modules
+
+### Phase 4: UI/Automation Layer (inspired by wibox/ruled/)
+- [ ] Create `lua/ui/` directory structure
+- [ ] Migrate `lua/widgets.lua` → `lua/ui/widgets.lua`
+  - [ ] Use foundation.object for widget base classes
+  - [ ] Abstract Cairo/LGI integration
+- [ ] Implement `lua/ui/keybindings.lua` with foundation.signal
+- [ ] Implement `lua/ui/automation.lua` for smart behaviors
+- [ ] Update `lua/awful/` integration
+- [ ] Create `lua/ui/init.lua` exporting all modules
+
+### Phase 5: Configuration Cleanup
+- [ ] Create unified `lua/somewm.lua` entry point
+- [ ] Refactor `rc.lua` to use new 3-layer API
+- [ ] Remove direct `Some.*` calls from user config
+- [ ] Implement backward compatibility shims
+- [ ] Create example configurations using new API
+
+### Phase 6: Advanced Features (inspired by AwesomeWM)
+- [ ] Implement reference counting for C object lifetime management
+- [ ] Add lazy loading with metatables to prevent circular dependencies
+- [ ] Create comprehensive property access system
+- [ ] Implement timer system in foundation layer
+- [ ] Add rule-based client automation
+
+### Phase 7: Testing & Documentation
+- [ ] Update all test files to use library APIs
+- [ ] Create comprehensive API documentation
+- [ ] Add usage examples for each module
+- [ ] Performance testing and optimization
+- [ ] Migration guide from current API
+
+## Implementation Guidelines
+
+### API Design Standards (based on AwesomeWM best practices)
+
+#### **Module Organization**
+- Every module has `init.lua` that exports submodules
+- Use lazy loading with metatables: `setmetatable({}, {__index = function() return require("module") end})`
+- Consistent 3-layer import: `foundation` → `core` → `ui`
+
+#### **Naming Conventions**
+- Functions: `verb_noun` format (e.g., `client.focus_byidx`, `tag.swap_with`)
+- Properties: Direct access (e.g., `client.name`, `client.urgent`)  
+- Signals: `event_name` format (e.g., `"property::name"`, `"request::activate"`)
+
+#### **Object System** 
+- Base class: `foundation.object` with signals and property access
+- Property pattern: `obj.property = value` auto-calls setters
+- Signal pattern: `obj:connect_signal(name, callback)` for events
+- Reference counting: Automatic C object lifetime management
+
+### Error Handling
+- All library functions should handle C API failures gracefully
+- Provide meaningful error messages to users
+- Use Lua's `error()` for unrecoverable failures
+- Return `nil, error_message` for recoverable failures
+
+### Performance Considerations
+- Cache expensive C API calls where appropriate
+- Minimize Lua ↔ C boundary crossings
+- Use efficient data structures
+- Profile critical paths
+
+### Backward Compatibility
+- Maintain compatibility shims during migration
+- Deprecation warnings for old APIs
+- Clear migration documentation
+- Version the library API
+
+## Success Metrics
+
+### Architecture Quality
+- [ ] Zero direct `Some.*` calls in user configuration
+- [ ] Clear separation of concerns across layers
+- [ ] Consistent API patterns across all modules
+- [ ] Comprehensive test coverage
+
+### Developer Experience
+- [ ] Intuitive API that matches user mental models
+- [ ] Rich documentation with examples
+- [ ] Easy migration path from current setup
+- [ ] Performance equal or better than current
+
+### Maintainability
+- [ ] Modular codebase with clear boundaries
+- [ ] Easy to add new compositor features
+- [ ] Stable C API that rarely changes
+- [ ] Library API that can evolve independently
+
+## Future Considerations
+
+### Extensibility
+- Plugin system for third-party extensions
+- IPC interface for external tools
+- Configuration validation and schema
+- Hot-reloading of configuration
+
+### Distribution
+- Package the library separately from core compositor
+- Versioned releases with semantic versioning
+- Package manager integration (LuaRocks)
+- Multiple configuration template options
+
+## Progress Tracking
+
+**Current Status**: Phase 2 Complete ✅
+
+**Next Milestone**: Complete Phase 3 (Core Layer Migration)
+
+**Estimated Timeline**: 
+- Phase 2 (Foundation): 2-3 days
+- Phase 3 (Core): 3-4 days  
+- Phase 4 (UI): 2-3 days
+- Phase 5 (Config): 1-2 days
+- Phase 6 (Advanced): 4-5 days
+- Phase 7 (Testing): 3-4 days
+
+**Total Estimate**: 3-4 weeks for complete AwesomeWM-inspired architecture
+
+## AwesomeWM Architecture Insights Applied
+
+### Key Learnings Integrated:
+- ✅ **3-sublayer architecture**: foundation/core/ui instead of flat structure
+- ✅ **Signal-based events**: Observer pattern for all lifecycle management
+- ✅ **Property access abstraction**: `obj.property` syntax with automatic getters/setters
+- ✅ **Init.lua pattern**: Consistent module exports across all layers
+- ✅ **Reference counting**: Proper C object lifetime management 
+- ✅ **Lazy loading**: Metatables prevent circular dependency issues
+- ✅ **Rule-based config**: Declarative automation like `ruled.client`
+
+### Architecture Stability:
+AwesomeWM's architecture has proven stable for 10+ years in production, providing confidence that this approach will scale well for SomeWM's needs.
+
+---
+
+*Last Updated: 2025-06-09*
+*Document Version: 1.0*
