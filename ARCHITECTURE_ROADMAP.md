@@ -234,14 +234,47 @@ end)
   - [x] `examples/rc-migration.lua` - Migration guide
   - [x] `examples/README.md` - Documentation
 
-### Phase 6: Advanced Features (inspired by AwesomeWM)
+### Phase 6: Memory Management & C Integration
 - [ ] Implement reference counting for C object lifetime management
-- [ ] Add lazy loading with metatables to prevent circular dependencies
-- [ ] Create comprehensive property access system
-- [ ] Implement timer system in foundation layer
-- [ ] Add rule-based client automation
+  - [ ] Add reference tracking for client objects
+  - [ ] Automatic cleanup when Lua objects are garbage collected
+  - [ ] Prevent crashes from accessing destroyed C objects
+  - [ ] Memory leak detection and prevention
+  - [ ] Safe client pointer validation
 
-### Phase 7: Testing & Documentation
+### Phase 7: Enhanced Module System
+- [ ] Advanced lazy loading with metatables
+  - [ ] Sophisticated circular dependency prevention
+  - [ ] Performance optimization through selective loading
+  - [ ] Module dependency graph analysis
+  - [ ] Hot-reloading support for development
+  - [ ] Module versioning and compatibility checking
+
+### Phase 8: Advanced Property System
+- [ ] Comprehensive property access system
+  - [ ] Property validation and type checking
+  - [ ] Computed properties with dependencies
+  - [ ] Property change batching and transactions
+  - [ ] Property observers and reactive updates
+  - [ ] Schema-based property definitions
+
+### Phase 9: Timer & Event System
+- [ ] Timer system in foundation layer
+  - [ ] Event scheduling and delayed execution
+  - [ ] Recurring tasks and intervals
+  - [ ] Debouncing and throttling utilities
+  - [ ] Animation framework foundation
+  - [ ] Performance monitoring and profiling timers
+
+### Phase 10: Advanced Automation
+- [ ] Enhanced rule-based client automation
+  - [ ] Complex condition matching with logical operators
+  - [ ] Rule priorities and conflict resolution
+  - [ ] Runtime rule modification and hot-reloading
+  - [ ] Machine learning-based window placement
+  - [ ] User behavior analytics and adaptive rules
+
+### Phase 11: Testing & Documentation
 - [ ] Update all test files to use library APIs
 - [ ] Create comprehensive API documentation
 - [ ] Add usage examples for each module
@@ -324,17 +357,22 @@ end)
 
 **Current Status**: Phase 5 Complete ✅
 
-**Next Milestone**: Complete Phase 6 (Advanced Features)
+**Next Milestone**: Complete Phase 6 (Memory Management & C Integration)
 
 **Completed Timeline**: 
 - Phase 2 (Foundation): ✅ 3 days
 - Phase 3 (Core): ✅ 4 days  
 - Phase 4 (UI): ✅ 2 days
 - Phase 5 (Config): ✅ 1 day
-- Phase 6 (Advanced): 4-5 days remaining
-- Phase 7 (Testing): 3-4 days remaining
+- Phase 6 (Memory Management): 2-3 days remaining
+- Phase 7 (Enhanced Modules): 2-3 days remaining  
+- Phase 8 (Property System): 3-4 days remaining
+- Phase 9 (Timer System): 2-3 days remaining
+- Phase 10 (Advanced Automation): 3-4 days remaining
+- Phase 11 (Testing & Docs): 3-4 days remaining
 
-**Progress**: 10/21 days completed (48% done)
+**Progress**: 10/31 days completed (32% done)
+**Estimated Total**: 4-5 weeks for complete advanced architecture
 
 ## AwesomeWM Architecture Insights Applied
 
@@ -353,4 +391,4 @@ AwesomeWM's architecture has proven stable for 10+ years in production, providin
 ---
 
 *Last Updated: 2025-06-09*
-*Document Version: 1.2 - Phase 5 Complete*
+*Document Version: 1.3 - Roadmap Restructured*
