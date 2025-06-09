@@ -6,24 +6,44 @@ This document outlines the plan to restructure SomeWM into a clean 3-layer archi
 
 ## Current State Analysis
 
-### Existing Architecture Issues
-- ❌ Direct `Some.*` API calls scattered across Lua files
-- ❌ `rc.lua` mixes user configuration with library-level functionality
-- ❌ No clear abstraction between compositor core and library
-- ❌ Raw C function exposure in high-level APIs
-- ❌ Tight coupling between user config and internal APIs
+### Architecture Progress
+- ✅ **Clean 3-layer separation**: foundation/core/ui with proper abstractions
+- ✅ **No direct `Some.*` calls** in UI layer - all abstracted through proper APIs
+- ✅ **Foundation object system** with signals and property access
+- ✅ **Lazy loading** prevents circular dependencies
+- ✅ **Backward compatibility** maintained for existing awful.key usage
+- ❌ `rc.lua` still mixes user configuration with library-level functionality
+- ❌ Legacy files still exist alongside new architecture
 
 ### Current File Structure
 ```
 lua/
-├── client.lua        -- Exposes Some.* directly
-├── monitor.lua       -- Exposes Some.* directly  
-├── tag.lua           -- Exposes Some.* directly
-├── widgets.lua       -- Mixed concerns
-├── awful/            -- Partially implemented
-└── logger.lua        -- Utility
+├── foundation/       -- ✅ Base utilities and object system
+│   ├── init.lua
+│   ├── object.lua    -- Signal/property system
+│   ├── geometry.lua  -- Position/rectangle utilities
+│   ├── signal.lua    -- Global event system
+│   └── logger.lua    -- Centralized logging
+├── core/            -- ✅ Window manager functionality
+│   ├── init.lua
+│   ├── client.lua    -- High-level client API
+│   ├── monitor.lua   -- Display management
+│   ├── tag.lua       -- Workspace management
+│   └── rules.lua     -- Declarative window rules
+├── ui/              -- ✅ User interface and automation
+│   ├── init.lua
+│   ├── widgets.lua   -- Widget creation using foundation.object
+│   ├── keybindings.lua -- Input handling with signals
+│   └── automation.lua -- Smart window behaviors
+├── awful/           -- ✅ Backward compatibility layer
+│   ├── init.lua
+│   └── key.lua       -- Forwards to ui.keybindings
+├── client.lua       -- ❌ LEGACY - use core.client
+├── monitor.lua      -- ❌ LEGACY - use core.monitor  
+├── tag.lua          -- ❌ LEGACY - use core.tag
+└── widgets.lua      -- ❌ LEGACY - use ui.widgets
 
-rc.lua                -- User config + library calls mixed
+rc.lua               -- User config + library calls mixed
 ```
 
 ## Target Architecture
@@ -154,15 +174,28 @@ end)
 - [x] Implement `lua/core/rules.lua` - declarative window rules
 - [x] Create `lua/core/init.lua` exporting all modules
 
-### Phase 4: UI/Automation Layer (inspired by wibox/ruled/)
-- [ ] Create `lua/ui/` directory structure
-- [ ] Migrate `lua/widgets.lua` → `lua/ui/widgets.lua`
-  - [ ] Use foundation.object for widget base classes
-  - [ ] Abstract Cairo/LGI integration
-- [ ] Implement `lua/ui/keybindings.lua` with foundation.signal
-- [ ] Implement `lua/ui/automation.lua` for smart behaviors
-- [ ] Update `lua/awful/` integration
-- [ ] Create `lua/ui/init.lua` exporting all modules
+### Phase 4: UI/Automation Layer (inspired by wibox/ruled/) ✅ COMPLETED
+- [x] Create `lua/ui/` directory structure
+- [x] Migrate `lua/widgets.lua` → `lua/ui/widgets.lua`
+  - [x] Use foundation.object for widget base classes
+  - [x] Abstract Cairo/LGI integration
+  - [x] Implement property access pattern
+  - [x] Remove direct `Some.*` calls
+- [x] Implement `lua/ui/keybindings.lua` with foundation.signal
+  - [x] Property-based keybinding objects
+  - [x] Signal system integration
+  - [x] Group management and help system
+- [x] Implement `lua/ui/automation.lua` for smart behaviors
+  - [x] Rule-based automation system
+  - [x] Smart focus, placement, and tag persistence
+  - [x] Declarative window rules
+- [x] Update `lua/awful/` integration
+  - [x] Forward awful.key to ui.keybindings
+  - [x] Maintain backward compatibility
+- [x] Create `lua/ui/init.lua` exporting all modules
+  - [x] Lazy loading with metatables
+  - [x] Convenience functions
+  - [x] Auto-initialization
 
 ### Phase 5: Configuration Cleanup
 - [ ] Create unified `lua/somewm.lua` entry point
@@ -259,19 +292,19 @@ end)
 
 ## Progress Tracking
 
-**Current Status**: Phase 3 Complete ✅
+**Current Status**: Phase 4 Complete ✅
 
-**Next Milestone**: Complete Phase 4 (UI/Automation Layer)
+**Next Milestone**: Complete Phase 5 (Configuration Cleanup)
 
-**Estimated Timeline**: 
-- Phase 2 (Foundation): 2-3 days
-- Phase 3 (Core): 3-4 days  
-- Phase 4 (UI): 2-3 days
-- Phase 5 (Config): 1-2 days
-- Phase 6 (Advanced): 4-5 days
-- Phase 7 (Testing): 3-4 days
+**Completed Timeline**: 
+- Phase 2 (Foundation): ✅ 3 days
+- Phase 3 (Core): ✅ 4 days  
+- Phase 4 (UI): ✅ 2 days
+- Phase 5 (Config): 1-2 days remaining
+- Phase 6 (Advanced): 4-5 days remaining
+- Phase 7 (Testing): 3-4 days remaining
 
-**Total Estimate**: 3-4 weeks for complete AwesomeWM-inspired architecture
+**Progress**: 9/21 days completed (43% done)
 
 ## AwesomeWM Architecture Insights Applied
 
@@ -290,4 +323,4 @@ AwesomeWM's architecture has proven stable for 10+ years in production, providin
 ---
 
 *Last Updated: 2025-06-09*
-*Document Version: 1.0*
+*Document Version: 1.1 - Phase 4 Complete*
