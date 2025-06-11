@@ -12,6 +12,269 @@
 
 lua_State *L = NULL;
 
+// Client reference tracking implementation
+static ClientRef *client_refs_head = NULL;
+
+void lua_client_refs_init(void) {
+    client_refs_head = NULL;
+}
+
+void lua_client_refs_cleanup(void) {
+    ClientRef *current = client_refs_head;
+    int leaked_refs = 0;
+    int leaked_clients = 0;
+    
+    while (current) {
+        ClientRef *next = current->next;
+        
+        // Log potential leaks
+        if (current->ref_count > 0) {
+            leaked_refs += current->ref_count;
+            leaked_clients++;
+            fprintf(stderr, "Warning: Client %p has %d references at cleanup (valid=%s)\n",
+                    current->client_ptr, current->ref_count, 
+                    current->is_valid ? "yes" : "no");
+        }
+        
+        free(current);
+        current = next;
+    }
+    
+    if (leaked_clients > 0) {
+        fprintf(stderr, "Memory leak detected: %d clients with %d total references not properly cleaned up\n",
+                leaked_clients, leaked_refs);
+    }
+    
+    client_refs_head = NULL;
+}
+
+ClientRef *lua_client_ref_add(void *client_ptr) {
+    if (!client_ptr) return NULL;
+    
+    // Check if already exists
+    ClientRef *current = client_refs_head;
+    while (current) {
+        if (current->client_ptr == client_ptr) {
+            current->ref_count++;
+            return current;
+        }
+        current = current->next;
+    }
+    
+    // Create new reference
+    ClientRef *new_ref = malloc(sizeof(ClientRef));
+    if (!new_ref) return NULL;
+    
+    new_ref->client_ptr = client_ptr;
+    new_ref->ref_count = 1;
+    new_ref->is_valid = 1;
+    new_ref->next = client_refs_head;
+    client_refs_head = new_ref;
+    
+    return new_ref;
+}
+
+void lua_client_ref_remove(void *client_ptr) {
+    if (!client_ptr) return;
+    
+    ClientRef *current = client_refs_head;
+    while (current) {
+        if (current->client_ptr == client_ptr) {
+            current->is_valid = 0;  // Mark as invalid, don't remove yet
+            return;
+        }
+        current = current->next;
+    }
+}
+
+int lua_client_ref_is_valid(void *client_ptr) {
+    if (!client_ptr) return 0;
+    
+    ClientRef *current = client_refs_head;
+    while (current) {
+        if (current->client_ptr == client_ptr) {
+            return current->is_valid;
+        }
+        current = current->next;
+    }
+    return 0;  // Not found = invalid
+}
+
+void lua_client_ref_increment(void *client_ptr) {
+    if (!client_ptr) return;
+    
+    ClientRef *current = client_refs_head;
+    while (current) {
+        if (current->client_ptr == client_ptr) {
+            current->ref_count++;
+            return;
+        }
+        current = current->next;
+    }
+    
+    // Create new reference if not found
+    lua_client_ref_add(client_ptr);
+}
+
+void lua_client_ref_decrement(void *client_ptr) {
+    if (!client_ptr) return;
+    
+    ClientRef **current = &client_refs_head;
+    while (*current) {
+        if ((*current)->client_ptr == client_ptr) {
+            (*current)->ref_count--;
+            if ((*current)->ref_count <= 0 && !(*current)->is_valid) {
+                // Remove from list when no references and invalid
+                ClientRef *to_remove = *current;
+                *current = (*current)->next;
+                free(to_remove);
+                return;
+            }
+            return;
+        }
+        current = &(*current)->next;
+    }
+}
+
+// Memory leak detection and debugging functions
+void lua_client_refs_debug_print(void) {
+    ClientRef *current = client_refs_head;
+    int total_clients = 0;
+    int total_refs = 0;
+    int invalid_clients = 0;
+    
+    fprintf(stderr, "=== Client Reference Debug Info ===\n");
+    
+    while (current) {
+        total_clients++;
+        total_refs += current->ref_count;
+        
+        if (!current->is_valid) {
+            invalid_clients++;
+        }
+        
+        fprintf(stderr, "Client %p: refs=%d, valid=%s\n", 
+                current->client_ptr, 
+                current->ref_count,
+                current->is_valid ? "yes" : "no");
+        
+        current = current->next;
+    }
+    
+    fprintf(stderr, "Total clients tracked: %d\n", total_clients);
+    fprintf(stderr, "Total references: %d\n", total_refs);
+    fprintf(stderr, "Invalid clients: %d\n", invalid_clients);
+    fprintf(stderr, "=== End Debug Info ===\n");
+}
+
+int lua_client_refs_get_count(void) {
+    ClientRef *current = client_refs_head;
+    int count = 0;
+    
+    while (current) {
+        count++;
+        current = current->next;
+    }
+    
+    return count;
+}
+
+int lua_client_refs_get_total_refs(void) {
+    ClientRef *current = client_refs_head;
+    int total_refs = 0;
+    
+    while (current) {
+        total_refs += current->ref_count;
+        current = current->next;
+    }
+    
+    return total_refs;
+}
+
+// Called from dwl.c when a client is mapped/created
+void lua_client_mapped(void *client_ptr) {
+    if (!client_ptr) return;
+    
+    // Ensure client is tracked in reference system
+    lua_client_ref_add(client_ptr);
+}
+
+// Called from dwl.c when a client is destroyed
+void lua_client_destroyed(void *client_ptr) {
+    if (!client_ptr) return;
+    
+    // First emit the unmap event if we haven't already
+    lua_event_emit(LUA_EVENT_CLIENT_UNMAP, client_ptr, NULL);
+    
+    // Mark client as invalid in reference tracking
+    lua_client_ref_remove(client_ptr);
+}
+
+// Client userdata metatable name
+#define CLIENT_USERDATA_METATABLE "SomeWM.Client"
+
+// Garbage collection metamethod for client userdata
+static int client_userdata_gc(lua_State *L) {
+    ClientUserdata *udata = (ClientUserdata *)lua_touserdata(L, 1);
+    if (udata && udata->client_ptr) {
+        // Decrement reference count when Lua object is garbage collected
+        lua_client_ref_decrement(udata->client_ptr);
+    }
+    return 0;
+}
+
+// Create and push client userdata with garbage collection
+void lua_push_client_userdata(lua_State *L, void *client_ptr) {
+    if (!client_ptr) {
+        lua_pushnil(L);
+        return;
+    }
+    
+    // Create userdata
+    ClientUserdata *udata = (ClientUserdata *)lua_newuserdata(L, sizeof(ClientUserdata));
+    udata->client_ptr = client_ptr;
+    
+    // Increment reference count
+    lua_client_ref_increment(client_ptr);
+    
+    // Set metatable for garbage collection
+    luaL_getmetatable(L, CLIENT_USERDATA_METATABLE);
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);  // pop nil
+        // Create metatable if it doesn't exist
+        luaL_newmetatable(L, CLIENT_USERDATA_METATABLE);
+        lua_pushcfunction(L, client_userdata_gc);
+        lua_setfield(L, -2, "__gc");
+    }
+    lua_setmetatable(L, -2);
+}
+
+// Extract client pointer from userdata with validation
+void *lua_check_client_userdata(lua_State *L, int index) {
+    ClientUserdata *udata = (ClientUserdata *)luaL_checkudata(L, index, CLIENT_USERDATA_METATABLE);
+    if (!udata) {
+        // Fallback: try to get as light userdata for backward compatibility
+        return lua_touserdata(L, index);
+    }
+    return udata->client_ptr;
+}
+
+// Safe client access with error handling
+static void *lua_get_safe_client(lua_State *L, int index, const char *function_name) {
+    void *client = lua_check_client_userdata(L, index);
+    if (!client) {
+        return NULL;  // Let caller handle nil
+    }
+    
+    if (!lua_client_ref_is_valid(client)) {
+        // Log error but don't crash - return NULL to indicate invalid client
+        fprintf(stderr, "Warning: %s called with destroyed client pointer\n", function_name);
+        return NULL;
+    }
+    
+    return client;
+}
+
 // Event system implementation
 #define MAX_CALLBACKS_PER_EVENT 32
 
@@ -85,7 +348,7 @@ void lua_event_emit(LuaEventType event_type, void *client, void *data) {
             
             // Push client as first argument (or nil if no client)
             if (client) {
-                lua_pushlightuserdata(L, client);
+                lua_push_client_userdata(L, client);
             } else {
                 lua_pushnil(L);
             }
@@ -325,6 +588,78 @@ static int l_destroy_widget(lua_State *L) {
   return 0;
 }
 
+// Layer surface creation for wibar
+static int l_create_layer_surface(lua_State *L) {
+  int width = luaL_checkinteger(L, 1);
+  int height = luaL_checkinteger(L, 2);
+  int x = luaL_optinteger(L, 3, 0);
+  int y = luaL_optinteger(L, 4, 0);
+  const char *layer_name = luaL_optstring(L, 5, "top");
+  int exclusive_zone = luaL_optinteger(L, 6, height);
+  const char *anchor = luaL_optstring(L, 7, "top");
+  
+  // Map layer name to layer enum (will be passed to dwl.c)
+  int layer_level = 2; // Default to top layer
+  if (strcmp(layer_name, "background") == 0) layer_level = 0;
+  else if (strcmp(layer_name, "bottom") == 0) layer_level = 1;
+  else if (strcmp(layer_name, "top") == 0) layer_level = 2;
+  else if (strcmp(layer_name, "overlay") == 0) layer_level = 3;
+  
+  // Map anchor string to anchor flags (simplified for now)
+  uint32_t anchor_flags = 0;
+  if (strstr(anchor, "top")) anchor_flags |= 1;
+  if (strstr(anchor, "bottom")) anchor_flags |= 2;
+  if (strstr(anchor, "left")) anchor_flags |= 4;
+  if (strstr(anchor, "right")) anchor_flags |= 8;
+  
+  // Log the layer surface creation
+  lua_getglobal(L, "logger");
+  if (!lua_isnil(L, -1)) {
+    char msg[256];
+    snprintf(msg, sizeof(msg), "Creating layer surface: %dx%d at (%d,%d), layer=%s, exclusive=%d, anchor=%s", 
+             width, height, x, y, layer_name, exclusive_zone, anchor);
+    lua_getfield(L, -1, "info");
+    lua_pushstring(L, msg);
+    lua_pcall(L, 1, 0, 0);
+    lua_pop(L, 1);
+  } else {
+    fprintf(stderr, "Creating layer surface: %dx%d at (%d,%d), layer=%s, exclusive=%d\n", 
+            width, height, x, y, layer_name, exclusive_zone);
+    lua_pop(L, 1);
+  }
+  
+  // Call the dwl.c wrapper function to create actual layer surface
+  void *layer_surface = lua_create_layer_surface(width, height, layer_level, exclusive_zone, anchor_flags);
+  
+  if (layer_surface) {
+    lua_pushlightuserdata(L, layer_surface);
+    return 1;
+  } else {
+    lua_pushnil(L);
+    return 1;
+  }
+}
+
+// Destroy layer surface
+static int l_destroy_layer_surface(lua_State *L) {
+  void *layer_surface = lua_touserdata(L, 1);
+  if (layer_surface) {
+    lua_destroy_layer_surface(layer_surface);
+    
+    lua_getglobal(L, "logger");
+    if (!lua_isnil(L, -1)) {
+      lua_getfield(L, -1, "info");
+      lua_pushstring(L, "Layer surface destroyed");
+      lua_pcall(L, 1, 0, 0);
+      lua_pop(L, 1);
+    } else {
+      fprintf(stderr, "Layer surface destroyed\n");
+      lua_pop(L, 1);
+    }
+  }
+  return 0;
+}
+
 // Client wrapper functions are now declared in luaa.h
 
 // Client API functions
@@ -335,7 +670,7 @@ static int l_client_get_all(lua_State *L) {
   for (int i = 0; i < count; i++) {
     void *c = lua_get_client_by_index(i);
     if (c) {
-      lua_pushlightuserdata(L, c);
+      lua_push_client_userdata(L, c);
       lua_rawseti(L, -2, i + 1);  // Lua arrays are 1-indexed
     }
   }
@@ -345,16 +680,17 @@ static int l_client_get_all(lua_State *L) {
 
 static int l_client_get_focused(lua_State *L) {
   void *c = lua_get_focused_client();
-  if (c) {
-    lua_pushlightuserdata(L, c);
-  } else {
-    lua_pushnil(L);
-  }
+  lua_push_client_userdata(L, c);
   return 1;
 }
 
 static int l_client_get_title(lua_State *L) {
-  void *c = lua_touserdata(L, 1);
+  void *c = lua_get_safe_client(L, 1, "client_get_title");
+  if (!c) {
+    lua_pushnil(L);
+    return 1;
+  }
+  
   const char *title = lua_get_client_title(c);
   if (title) {
     lua_pushstring(L, title);
@@ -365,7 +701,12 @@ static int l_client_get_title(lua_State *L) {
 }
 
 static int l_client_get_appid(lua_State *L) {
-  void *c = lua_touserdata(L, 1);
+  void *c = lua_get_safe_client(L, 1, "client_get_appid");
+  if (!c) {
+    lua_pushnil(L);
+    return 1;
+  }
+  
   const char *appid = lua_get_client_appid(c);
   if (appid) {
     lua_pushstring(L, appid);
@@ -376,7 +717,12 @@ static int l_client_get_appid(lua_State *L) {
 }
 
 static int l_client_get_pid(lua_State *L) {
-  void *c = lua_touserdata(L, 1);
+  void *c = lua_get_safe_client(L, 1, "client_get_pid");
+  if (!c) {
+    lua_pushnil(L);
+    return 1;
+  }
+  
   int pid = lua_get_client_pid(c);
   if (pid > 0) {
     lua_pushinteger(L, pid);
@@ -387,13 +733,22 @@ static int l_client_get_pid(lua_State *L) {
 }
 
 static int l_client_kill(lua_State *L) {
-  void *c = lua_touserdata(L, 1);
+  void *c = lua_get_safe_client(L, 1, __func__);
+  if (!c) {
+    return 0;
+  }
+  
   lua_kill_client(c);
   return 0;
 }
 
 static int l_client_get_geometry(lua_State *L) {
-  void *c = lua_touserdata(L, 1);
+  void *c = lua_get_safe_client(L, 1, __func__);
+  if (!c) {
+    lua_pushnil(L);
+    return 1;
+  }
+  
   int x, y, w, h;
   lua_get_client_geometry(c, &x, &y, &w, &h);
   
@@ -411,21 +766,36 @@ static int l_client_get_geometry(lua_State *L) {
 }
 
 static int l_client_get_tags(lua_State *L) {
-  void *c = lua_touserdata(L, 1);
+  void *c = lua_get_safe_client(L, 1, __func__);
+  if (!c) {
+    lua_pushinteger(L, 0);
+    return 1;
+  }
+  
   uint32_t tags = lua_get_client_tags(c);
   lua_pushinteger(L, tags);
   return 1;
 }
 
 static int l_client_get_floating(lua_State *L) {
-  void *c = lua_touserdata(L, 1);
+  void *c = lua_get_safe_client(L, 1, __func__);
+  if (!c) {
+    lua_pushboolean(L, 0);
+    return 1;
+  }
+  
   int floating = lua_get_client_floating(c);
   lua_pushboolean(L, floating);
   return 1;
 }
 
 static int l_client_get_fullscreen(lua_State *L) {
-  void *c = lua_touserdata(L, 1);
+  void *c = lua_get_safe_client(L, 1, __func__);
+  if (!c) {
+    lua_pushboolean(L, 0);
+    return 1;
+  }
+  
   int fullscreen = lua_get_client_fullscreen(c);
   lua_pushboolean(L, fullscreen);
   return 1;
@@ -433,33 +803,53 @@ static int l_client_get_fullscreen(lua_State *L) {
 
 // Client manipulation functions
 static int l_client_focus(lua_State *L) {
-  void *c = lua_touserdata(L, 1);
+  void *c = lua_get_safe_client(L, 1, __func__);
+  if (!c) {
+    return 0;
+  }
+  
   lua_client_focus(c);
   return 0;
 }
 
 static int l_client_close(lua_State *L) {
-  void *c = lua_touserdata(L, 1);
+  void *c = lua_get_safe_client(L, 1, __func__);
+  if (!c) {
+    return 0;
+  }
+  
   lua_client_close(c);
   return 0;
 }
 
 static int l_client_set_floating(lua_State *L) {
-  void *c = lua_touserdata(L, 1);
+  void *c = lua_get_safe_client(L, 1, __func__);
+  if (!c) {
+    return 0;
+  }
+  
   int floating = lua_toboolean(L, 2);
   lua_client_set_floating(c, floating);
   return 0;
 }
 
 static int l_client_set_fullscreen(lua_State *L) {
-  void *c = lua_touserdata(L, 1);
+  void *c = lua_get_safe_client(L, 1, __func__);
+  if (!c) {
+    return 0;
+  }
+  
   int fullscreen = lua_toboolean(L, 2);
   lua_client_set_fullscreen(c, fullscreen);
   return 0;
 }
 
 static int l_client_set_geometry(lua_State *L) {
-  void *c = lua_touserdata(L, 1);
+  void *c = lua_get_safe_client(L, 1, __func__);
+  if (!c) {
+    return 0;
+  }
+  
   int x = luaL_checkinteger(L, 2);
   int y = luaL_checkinteger(L, 3);
   int w = luaL_checkinteger(L, 4);
@@ -469,7 +859,11 @@ static int l_client_set_geometry(lua_State *L) {
 }
 
 static int l_client_set_tags(lua_State *L) {
-  void *c = lua_touserdata(L, 1);
+  void *c = lua_get_safe_client(L, 1, __func__);
+  if (!c) {
+    return 0;
+  }
+  
   uint32_t tags = luaL_checkinteger(L, 2);
   lua_client_set_tags(c, tags);
   return 0;
@@ -724,6 +1118,30 @@ static int l_tag_get_urgent(lua_State *L) {
   return 1;
 }
 
+// Memory debugging functions for Lua
+static int l_client_refs_debug_print(lua_State *L) {
+  lua_client_refs_debug_print();
+  return 0;
+}
+
+static int l_client_refs_get_count(lua_State *L) {
+  int count = lua_client_refs_get_count();
+  lua_pushinteger(L, count);
+  return 1;
+}
+
+static int l_client_refs_get_total_refs(lua_State *L) {
+  int total_refs = lua_client_refs_get_total_refs();
+  lua_pushinteger(L, total_refs);
+  return 1;
+}
+
+// Force garbage collection for testing
+static int l_gc_collect(lua_State *L) {
+  lua_gc(L, LUA_GCCOLLECT, 0);
+  return 0;
+}
+
 static const struct luaL_Reg somelib[] = {{"hello_world", l_hello_world},
                                           {"spawn", l_spawn},
                                           {"restart", l_restart},
@@ -732,6 +1150,8 @@ static const struct luaL_Reg somelib[] = {{"hello_world", l_hello_world},
                                           {"draw_widget", l_draw_widget},
                                           {"destroy_widget", l_destroy_widget},
                                           {"create_widget", l_create_notification},
+                                          {"create_layer_surface", l_create_layer_surface},
+                                          {"destroy_layer_surface", l_destroy_layer_surface},
                                           {"log", l_log},
                                           {"client_get_all", l_client_get_all},
                                           {"client_get_focused", l_client_get_focused},
@@ -773,6 +1193,11 @@ static const struct luaL_Reg somelib[] = {{"hello_world", l_hello_world},
                                           {"tag_toggle_view", l_tag_toggle_view},
                                           {"tag_get_occupied", l_tag_get_occupied},
                                           {"tag_get_urgent", l_tag_get_urgent},
+                                          // Memory debugging functions
+                                          {"client_refs_debug_print", l_client_refs_debug_print},
+                                          {"client_refs_get_count", l_client_refs_get_count},
+                                          {"client_refs_get_total_refs", l_client_refs_get_total_refs},
+                                          {"gc_collect", l_gc_collect},
                                           {NULL, NULL}};
 
 static int luaopen_some(lua_State *lua) {
@@ -835,8 +1260,9 @@ int get_config_bool(const char *key, int default_value) {
 
 void cleanup_lua(void) {
   if (L != NULL) {
-    // Cleanup event system before closing Lua state
+    // Cleanup systems before closing Lua state
     lua_event_cleanup();
+    lua_client_refs_cleanup();
     lua_close(L);
     L = NULL;
   }
@@ -934,7 +1360,8 @@ void init_lua(void) {
 
   luaL_openlibs(L);
   
-  // Initialize event system
+  // Initialize systems
+  lua_client_refs_init();
   lua_event_init();
 
   if (set_lua_path(L, lua_path)) {

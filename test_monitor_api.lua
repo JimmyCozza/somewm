@@ -1,8 +1,9 @@
 -- Test Monitor API (Phase 4 - READ)
 -- Tests all monitor data access functionality
 
-local monitor = require("monitor")
-local logger = require("logger")
+local somewm = require("somewm")
+local monitor = somewm.core.monitor
+local logger = somewm.base.logger
 
 logger.info("=== Monitor API Test (Phase 4 - READ) ===")
 
@@ -61,7 +62,12 @@ logger.info("--- Monitor Info Test ---")
 if #monitors > 0 then
   local info = monitor.info(monitors[1])
   if info then
-    logger.info("Monitor info keys: " .. table.concat(vim.tbl_keys(info), ", "))
+    -- Get keys from info table
+    local keys = {}
+    for k, _ in pairs(info) do
+      table.insert(keys, k)
+    end
+    logger.info("Monitor info keys: " .. table.concat(keys, ", "))
   end
 end
 

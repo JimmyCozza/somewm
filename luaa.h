@@ -92,11 +92,52 @@ typedef enum {
     LUA_EVENT_COUNT  // Must be last
 } LuaEventType;
 
+// Client reference tracking for memory safety
+typedef struct ClientRef {
+    void *client_ptr;     // Raw client pointer from dwl.c
+    int ref_count;        // Number of Lua references
+    int is_valid;         // 0 if client has been destroyed
+    struct ClientRef *next;
+} ClientRef;
+
+// Client reference management
+void lua_client_refs_init(void);
+void lua_client_refs_cleanup(void);
+ClientRef *lua_client_ref_add(void *client_ptr);
+void lua_client_ref_remove(void *client_ptr);
+int lua_client_ref_is_valid(void *client_ptr);
+void lua_client_ref_increment(void *client_ptr);
+void lua_client_ref_decrement(void *client_ptr);
+
+// Memory leak detection and debugging
+void lua_client_refs_debug_print(void);
+int lua_client_refs_get_count(void);
+int lua_client_refs_get_total_refs(void);
+
+// Called from dwl.c when a client is mapped/created
+void lua_client_mapped(void *client_ptr);
+
+// Called from dwl.c when a client is destroyed
+void lua_client_destroyed(void *client_ptr);
+
+// Lua userdata wrapper for client pointers
+typedef struct {
+    void *client_ptr;
+} ClientUserdata;
+
+// Helper functions for client userdata
+void lua_push_client_userdata(lua_State *L, void *client_ptr);
+void *lua_check_client_userdata(lua_State *L, int index);
+
 // Event callback management
 void lua_event_init(void);
 void lua_event_cleanup(void);
 int lua_event_connect(LuaEventType event_type, int callback_ref);
 void lua_event_disconnect(LuaEventType event_type, int callback_ref);
 void lua_event_emit(LuaEventType event_type, void *client, void *data);
+
+// Layer surface wrapper functions (implemented in dwl.c)
+void *lua_create_layer_surface(int width, int height, int layer, int exclusive_zone, uint32_t anchor);
+void lua_destroy_layer_surface(void *layer_surface);
 
 #endif

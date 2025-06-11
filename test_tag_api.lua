@@ -1,8 +1,9 @@
 -- Test Tag API (Phase 4 - READ)
 -- Tests all tag data access functionality
 
-local tag = require("tag")
-local logger = require("logger")
+local somewm = require("somewm")
+local tag = somewm.core.tag
+local logger = somewm.base.logger
 
 logger.info("=== Tag API Test (Phase 4 - READ) ===")
 
@@ -72,7 +73,7 @@ logger.info("Converted to mask: " .. test_mask)
 logger.info("Converted back to list: [" .. table.concat(result_list, ", ") .. "]")
 
 -- Test monitor-specific tag functions
-local monitor = require("monitor")
+local monitor = somewm.core.monitor
 local monitors = monitor.get_all()
 if #monitors > 0 then
   logger.info("--- Monitor-Specific Tag Functions ---")

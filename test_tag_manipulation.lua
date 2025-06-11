@@ -1,8 +1,9 @@
 -- Test Tag Management (Phase 4 - WRITE)
 -- Tests tag manipulation functionality
 
-local tag = require("tag")
-local logger = require("logger")
+local somewm = require("somewm")
+local tag = somewm.core.tag
+local logger = somewm.base.logger
 
 logger.info("=== Tag Management Test (Phase 4 - WRITE) ===")
 
@@ -57,7 +58,7 @@ tag.toggle_view(toggle_mask)
 logger.info("After toggle: [" .. table.concat(tag.get_active_list(), ", ") .. "]")
 
 -- Test monitor-specific tag manipulation (if multiple monitors)
-local monitor = require("monitor")
+local monitor = somewm.core.monitor
 local monitors = monitor.get_all()
 if #monitors > 1 then
   logger.info("--- Testing Monitor-Specific Tag Management ---")

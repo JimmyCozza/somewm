@@ -1,8 +1,9 @@
 -- Test Monitor Management (Phase 4 - WRITE)
 -- Tests monitor manipulation functionality
 
-local monitor = require("monitor")
-local logger = require("logger")
+local somewm = require("somewm")
+local monitor = somewm.core.monitor
+local logger = somewm.base.logger
 
 logger.info("=== Monitor Management Test (Phase 4 - WRITE) ===")
 
